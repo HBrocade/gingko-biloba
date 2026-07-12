@@ -1,15 +1,15 @@
 import { useEffect } from 'react'
 import { useGame } from '../game/store'
 
-/** Drives the persistent timers: HP regen, per-second ticks, autosave. */
+/** 驱动持久化定时器：HP 回复、每秒 tick、自动存档。 */
 export function useGameLoop() {
   useEffect(() => {
-    // Load any existing save, then set up the world.
+    // 加载已有存档，然后初始化世界。
     const store = useGame.getState()
     store.loadGame()
     store.recompute(false)
     store.refreshDungeons(true)
-    store.restockShop() // stock the shop so it isn't empty on first open
+    store.restockShop() // 补充商店库存，使其首次打开时不为空
 
     const second = setInterval(() => {
       const s = useGame.getState()

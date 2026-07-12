@@ -1,4 +1,4 @@
-// Real pixel-art assets ported from the original project.
+// 从原项目移植的真实像素美术资源。
 import mapBg from './map.jpg'
 import monster from './monster.png'
 import boss from './boss.png'

@@ -1,15 +1,15 @@
-// Resolves generated item icons (if any) by item name. Works with emoji fallback:
-// if `npm run gen:assets` has produced PNGs in ./generated, they light up automatically;
-// otherwise itemArt() returns undefined and the UI shows the emoji icon.
+// 按物品名称解析已生成的物品图标（如果有）。支持 emoji 回退：
+// 若 `npm run gen:assets` 已在 ./generated 中生成 PNG，它们会自动启用；
+// 否则 itemArt() 返回 undefined，UI 显示 emoji 图标。
 
-/** djb2 hash — MUST stay identical to artKey() in scripts/asset-manifest.mjs. */
+/** djb2 hash——必须与 scripts/asset-manifest.mjs 中的 artKey() 保持完全一致。 */
 export function artKey(name: string): string {
   let h = 5381
   for (let i = 0; i < name.length; i++) h = (((h << 5) + h) ^ name.charCodeAt(i)) >>> 0
   return 'item-' + h.toString(36)
 }
 
-// Eagerly collect any generated PNGs at build time (empty object if none exist yet).
+// 在构建时急切收集所有已生成的 PNG（若尚不存在则为空对象）。
 const files = import.meta.glob('./generated/*.png', {
   eager: true,
   query: '?url',

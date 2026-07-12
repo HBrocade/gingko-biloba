@@ -1,18 +1,18 @@
-// ---- Skill system ----
-// Damage per cast = multiplier × ATK. Each cast costs MP; each skill has its own cooldown.
+// ---- 技能系统 ----
+// 每次施放的伤害 = 倍率 × ATK。每次施放消耗 MP；每个技能有各自的冷却时间。
 
 export interface SkillDef {
   id: string
   name: string
   icon: string
   desc: string
-  /** damage per cast = multiplier × ATK */
+  /** 每次施放的伤害 = 倍率 × ATK */
   multiplier: number
-  /** MP consumed per cast */
+  /** 每次施放消耗的 MP */
   mpCost: number
-  /** seconds between casts */
+  /** 两次施放之间的秒数 */
   cooldown: number
-  /** shop price in gold */
+  /** 商店金币价格 */
   price: number
 }
 
@@ -33,19 +33,19 @@ export function ownedSkillDefs(ids: string[]): SkillDef[] {
   return ids.map(skillById).filter((s): s is SkillDef => !!s)
 }
 
-/** Max MP scales with player level. */
+/** 最大 MP 随玩家等级增长。 */
 export function maxMpFor(lv: number): number {
   return 100 + lv * 12
 }
 
-/** MP regenerated per second (10% of max). */
+/** 每秒回复的 MP（最大值的 10%）。 */
 export function mpRegenFor(maxMp: number): number {
   return maxMp * 0.1
 }
 
 /**
- * Steady-state skill DPS estimate (for the stat panel). Skills are throttled to
- * whatever MP regen can sustain: total demand = Σ mpCost/cooldown.
+ * 稳定状态下的技能 DPS 估算（用于属性面板）。技能会被限制到
+ * MP 回复所能维持的水平：总需求 = Σ mpCost/cooldown。
  */
 export function skillDpsDisplay(defs: SkillDef[], atk: number, mpRegen: number): number {
   if (!defs.length || atk <= 0) return 0
@@ -56,9 +56,9 @@ export function skillDpsDisplay(defs: SkillDef[], atk: number, mpRegen: number):
 }
 
 /**
- * Per-fight skill damage. Over `fightTime` seconds the player can spend
- * `curMp + mpRegen*fightTime` MP; casts are limited by cooldown and MP, with the
- * most MP-efficient skills prioritised. Returns total damage and MP spent.
+ * 每场战斗的技能伤害。在 `fightTime` 秒内玩家可消耗
+ * `curMp + mpRegen*fightTime` 点 MP；施放次数受冷却和 MP 限制，
+ * 并优先使用 MP 效率最高的技能。返回总伤害和消耗的 MP。
  */
 export function simulateSkillDamage(
   defs: SkillDef[],
@@ -73,7 +73,7 @@ export function simulateSkillDamage(
   let dmg = 0
   let mpSpent = 0
   for (const d of sorted) {
-    const maxByCd = Math.floor(Math.max(0, fightTime) / d.cooldown) + 1 // +1 for the opening cast
+    const maxByCd = Math.floor(Math.max(0, fightTime) / d.cooldown) + 1 // +1 表示开场的首次施放
     const maxByMp = Math.floor((mpAvail - mpSpent) / d.mpCost)
     const casts = Math.max(0, Math.min(maxByCd, maxByMp))
     dmg += casts * d.multiplier * atk

@@ -3,23 +3,37 @@ import { IMG } from '../assets/game'
 import { heroImg } from '../assets/heroes'
 import { battleTier, battleBgUrl, fxUrl } from '../assets/battle'
 import { skillById } from '../game/skills'
+import { ABYSS_TIERS, abyssTierByKey, abyssEntryCost } from '../game/formulas'
 import type { Dungeon } from '../game/types'
 
 function BattleStage() {
   const battle = useGame((s) => s.battle)!
   const stopBattle = useGame((s) => s.stopBattle)
   const heroId = useGame((s) => s.heroId)
-  const skills = useGame((s) => s.skills)
+  const attribute = useGame((s) => s.attribute)
   const d = battle.dungeon
 
   const idx = Math.min(battle.nextEvent - 1, d.eventNum - 1)
   const ev = d.eventType[idx]
   const isBoss = ev.type === 'boss'
-  const fighting = battle.phase === 'fight'
+  const fight = battle.fight
+  const fighting = battle.phase === 'fight' && !!fight && fight.enemyHp > 0
+  // 无尽模式怪物等级为 lv*5（d.lv 是无尽层数）；深渊/普通副本在 d.lvMin 中
+  // 暴露真实的怪物等级。
   const tier = battleTier(d.type === 'endless' ? d.lv * 5 : d.lvMin)
   const bg = battleBgUrl(tier)
-  const skillFx = skills.map((id) => skillById(id)).filter(Boolean).slice(0, 4)
-  const heroFx = fxUrl('basic')
+
+  const enemyPct = fight ? Math.max(0, (fight.enemyHp / fight.enemyMaxHp) * 100) : 100
+  const heroPct = attribute.MAXHP.value ? Math.max(0, (attribute.CURHP.value / attribute.MAXHP.value) * 100) : 0
+
+  const heroFx = fight?.heroFx
+  const enemyFx = fight?.enemyFx
+  const skillDef = heroFx?.skill ? skillById(heroFx.skill) : undefined
+  const skillPng = heroFx?.skill ? fxUrl(heroFx.skill) : undefined
+  const basicPng = fxUrl('basic')
+
+  const sub =
+    d.type === 'endless' ? '无尽挑战' : d.type === 'abyss' ? '深渊挑战' : `Lv${d.lvMin}-${d.lvMax} · ${d.difficultyName}`
 
   return (
     <div
@@ -31,9 +45,9 @@ function BattleStage() {
           结束挑战
         </button>
         <div className="bs-info">
-          <div className="bs-name">{d.type === 'endless' ? `无尽 · 第${d.lv}层` : d.name}</div>
+          <div className="bs-name">{d.name}</div>
           <div className="bs-sub">
-            {d.type === 'endless' ? '无尽挑战' : `Lv${d.lvMin}-${d.lvMax} · ${d.difficultyName}`} · 第 {battle.nextEvent}/{d.eventNum} 关
+            {sub} · 第 {battle.nextEvent}/{d.eventNum} 关
           </div>
         </div>
         <div className="bs-progress">
@@ -50,34 +64,44 @@ function BattleStage() {
 
       <div className="bs-arena">
         <div className="bs-side hero-side">
+          {enemyFx && (
+            <div className="bs-dmg hero-dmg" key={`hd-${enemyFx.id}`}>
+              -{enemyFx.dmg}
+            </div>
+          )}
           <img className={`sprite bs-hero${fighting ? ' attacking' : ' walking'}`} src={heroImg(heroId)} alt="hero" />
+          <div className="bs-hpbar hero">
+            <div className="bs-hpbar-fill" style={{ width: `${heroPct}%` }} />
+          </div>
         </div>
         <div className="bs-side enemy-side">
+          {fighting && heroFx && (
+            <div className="bs-fx" key={`fx-${heroFx.id}`}>
+              {skillDef ? (
+                skillPng ? (
+                  <img className="bs-skill-fx sprite" src={skillPng} alt="" />
+                ) : (
+                  <span className="bs-skill-fx">{skillDef.icon}</span>
+                )
+              ) : basicPng ? (
+                <img className="bs-basic-fx sprite" src={basicPng} alt="" />
+              ) : (
+                <span className="bs-basic-fx">⚔️</span>
+              )}
+            </div>
+          )}
+          {heroFx && (
+            <div className={`bs-dmg enemy-dmg${skillDef ? ' skill' : ''}`} key={`ed-${heroFx.id}`}>
+              -{heroFx.dmg}
+            </div>
+          )}
           <img key={idx} className={`sprite bs-enemy${isBoss ? ' boss' : ''}${fighting ? ' hurt' : ''}`} src={isBoss ? IMG.boss : IMG.monster} alt="enemy" />
+          <div className="bs-hpbar enemy">
+            <div className="bs-hpbar-fill" style={{ width: `${enemyPct}%` }} />
+          </div>
           <div className="bs-enemy-lv">
             Lv{ev.lv} {ev.name}
           </div>
-          {fighting && (
-            <div className="bs-fx" key={`${idx}-${battle.fightUntil}`}>
-              {heroFx ? <img className="bs-basic-fx sprite" src={heroFx} alt="" /> : <span className="bs-basic-fx">⚔️</span>}
-              {skillFx.map((sk, i) => {
-                const png = fxUrl(sk!.id)
-                const style = { animationDelay: `${i * 120}ms`, left: `${-14 + i * 16}px`, top: `${-10 + (i % 2) * 20}px` }
-                return png ? (
-                  <img key={sk!.id} className="bs-skill-fx sprite" src={png} alt="" style={style} />
-                ) : (
-                  <span key={sk!.id} className="bs-skill-fx" style={style}>
-                    {sk!.icon}
-                  </span>
-                )
-              })}
-            </div>
-          )}
-          {fighting && battle.lastResult && (
-            <div className="bs-dmg" key={`dmg-${idx}-${battle.fightUntil}`}>
-              -{battle.lastResult.dmg}
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -88,11 +112,75 @@ function DungeonInfo({ d }: { d: Dungeon }) {
   const beginBattle = useGame((s) => s.beginBattle)
   const closeDungeon = useGame((s) => s.closeDungeon)
   const resetEndlessLv = useGame((s) => s.resetEndlessLv)
+  const resetAbyssLv = useGame((s) => s.resetAbyssLv)
   const reChallenge = useGame((s) => s.reChallenge)
   const upEChallenge = useGame((s) => s.upEChallenge)
   const reEChallenge = useGame((s) => s.reEChallenge)
+  const upAChallenge = useGame((s) => s.upAChallenge)
+  const reAChallenge = useGame((s) => s.reAChallenge)
   const setFlag = useGame((s) => s.setChallengeFlag)
+  const setAbyssTier = useGame((s) => s.setAbyssTier)
+  const abyssTier = useGame((s) => s.abyssTier)
+  const abyssLv = useGame((s) => s.abyssLv)
+  const gold = useGame((s) => s.gold)
+  const charLv = useGame((s) => s.lv)
   const isEndless = d.type === 'endless'
+
+  if (d.type === 'abyss') {
+    const tier = abyssTierByKey(abyssTier)
+    const cost = abyssEntryCost(tier, charLv, abyssLv)
+    const canAfford = gold >= cost
+    return (
+      <div className="dungeon-info">
+        <div className="di-head">
+          <span>当前副本：深渊</span>
+          <div className="di-head-btns">
+            <button className="link-btn" onClick={resetAbyssLv} title="重置深渊层数">
+              重置
+            </button>
+            <button className="link-btn" onClick={closeDungeon}>
+              ✕
+            </button>
+          </div>
+        </div>
+        <div className="di-row">
+          <label className="di-tier">
+            难度级别：
+            <select value={abyssTier} onChange={(e) => setAbyssTier(e.target.value)}>
+              {ABYSS_TIERS.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.name}（副本级别 {t.level}）
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="di-row">
+          <span>深渊层数：{abyssLv}</span>
+          <span className={canAfford ? '' : 'red'}>进入花费：💎{cost.toLocaleString()}</span>
+        </div>
+        <div className="di-desc">
+          <p>· 深渊只掉落装备，不产出灵石</p>
+          <p>· 装备爆率高于普通副本，且随层数提高</p>
+          <p>· 每次进入扣除灵石 = 副本级别 × 角色等级 × 深渊层级</p>
+          <p>· 挑战成功回满血并进入更深一层</p>
+        </div>
+        <div className="di-actions">
+          <div className="di-options">
+            <label>
+              <input type="checkbox" checked={upAChallenge} onChange={(e) => setFlag('upAChallenge', e.target.checked)} /> 向上挑战
+            </label>
+            <label>
+              <input type="checkbox" checked={reAChallenge} onChange={(e) => setFlag('reAChallenge', e.target.checked)} /> 重复挑战
+            </label>
+          </div>
+          <button className="btn primary" onClick={beginBattle} disabled={!canAfford} title={canAfford ? '' : '灵石不足'}>
+            开始挑战
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="dungeon-info">
@@ -163,6 +251,7 @@ export function MapPanel() {
   const lv = useGame((s) => s.lv)
   const selectDungeon = useGame((s) => s.selectDungeon)
   const selectEndless = useGame((s) => s.selectEndless)
+  const selectAbyss = useGame((s) => s.selectAbyss)
 
   return (
     <div
@@ -194,6 +283,12 @@ export function MapPanel() {
             <button className="map-node endless" style={{ top: '6%', left: '10%' }} onClick={selectEndless}>
               <span className="node-icon">♾️</span>
               <span className="node-lv">无尽</span>
+            </button>
+          )}
+          {lv >= 10 && (
+            <button className="map-node abyss" style={{ top: '6%', left: '23%' }} onClick={selectAbyss}>
+              <span className="node-icon">🕳️</span>
+              <span className="node-lv">深渊</span>
             </button>
           )}
           {selectedDungeon && <DungeonInfo d={selectedDungeon} />}

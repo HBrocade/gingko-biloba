@@ -1,7 +1,7 @@
-// Battle scene backgrounds + attack/skill effect sprites.
-// Generated images (if present) override the built-in CSS/emoji fallback:
-//   backgrounds → src/assets/battle/<tier>.{png,jpg}
-//   effects     → src/assets/fx/<name>.{png,webp}
+// 战斗场景背景 + 攻击/技能特效精灵图。
+// 生成的图片（若存在）会覆盖内置的 CSS/emoji 兜底方案：
+//   背景 → src/assets/battle/<tier>.{png,jpg}
+//   特效 → src/assets/fx/<name>.{png,webp}
 
 const bgFiles = import.meta.glob('./battle/*.{png,jpg,jpeg,webp}', {
   eager: true,
@@ -28,7 +28,7 @@ for (const p in fxFiles) {
 export const BATTLE_TIERS = ['forest', 'wild', 'cave', 'abyss', 'void'] as const
 export type BattleTier = (typeof BATTLE_TIERS)[number]
 
-/** Battle scene tier from an (effective) dungeon level — matches the dungeon-name tiers. */
+/** 根据（有效）地下城等级得出战斗场景层级 —— 与地下城名称层级保持一致。 */
 export function battleTier(lv: number): BattleTier {
   if (lv <= 15) return 'forest'
   if (lv <= 40) return 'wild'
@@ -37,12 +37,12 @@ export function battleTier(lv: number): BattleTier {
   return 'void'
 }
 
-/** Generated battle background for a tier, if one exists. */
+/** 某层级对应的生成战斗背景（若存在）。 */
 export function battleBgUrl(tier: string): string | undefined {
   return bgByTier[tier]
 }
 
-/** Generated effect sprite for a name (e.g. 'basic', skill id), if one exists. */
+/** 某名称对应的生成特效精灵图（例如 'basic'、技能 id），若存在。 */
 export function fxUrl(name: string): string | undefined {
   return fxByName[name]
 }

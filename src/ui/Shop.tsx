@@ -22,7 +22,7 @@ export function Shop() {
   const bagFree = backpack.filter((s) => !s).length
   const hasUnique = shop.some((i) => i?.quality.name === '独特')
 
-  // Guard against refreshing away a unique item — ask first.
+  // 防止把独特装备刷新掉 —— 先询问确认。
   const onRefresh = (mode: 'free' | 'gold') => {
     if (hasUnique) setConfirmRefresh(mode)
     else refreshShop(mode)

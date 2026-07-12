@@ -2,7 +2,7 @@ import { useGame } from '../game/store'
 import { computePlayerAttribute, itemScore } from '../game/formulas'
 import type { Item } from '../game/types'
 
-/** Shows how the player's stats would change if this item were equipped. */
+/** 展示装备该物品后，玩家属性会如何变化。 */
 export function CompareDelta({ item }: { item: Item }) {
   const equipment = useGame((s) => s.equipment)
   const rA = useGame((s) => s.reincarnationAttribute)
@@ -11,14 +11,14 @@ export function CompareDelta({ item }: { item: Item }) {
 
   const slot = item.itemType
   const equipped = equipment[slot]
-  // Don't show a delta for the item that's already equipped in that slot.
+  // 对于该槽位已装备的物品，不显示变化差值。
   if (equipped.id === item.id) return null
 
   const ratio = attribute.MAXHP.value ? attribute.CURHP.value / attribute.MAXHP.value : 1
   const cur = computePlayerAttribute(equipment, rA, ratio, primary)
   const next = computePlayerAttribute({ ...equipment, [slot]: item }, rA, ratio, primary)
 
-  // effective auto DPS including 黄字/白字 multipliers (skills excluded here for a quick estimate)
+  // 有效的自动挂机 DPS，包含 黄字/白字 倍率（此处排除技能以便快速估算）
   const effDps = (x: typeof cur) => x.DPS * (1 + x.DMGAMP / 100) * (1 + x.DMGADD / 100)
 
   const rows = [

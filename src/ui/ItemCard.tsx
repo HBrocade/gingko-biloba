@@ -16,7 +16,7 @@ const SLOT_LABEL: Record<string, string> = {
   neck: '项链',
 }
 
-/** A full equipment detail card — reused in tooltips and elsewhere. */
+/** 完整的装备详情卡片 — 在工具提示等场景中复用。 */
 export function ItemCard({ item }: Props) {
   const playerLv = useGame((s) => s.lv)
   const mult = enchantMultiplier(item.enchantlvl)

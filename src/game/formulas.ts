@@ -14,7 +14,7 @@ import type {
   ReincarnationAttribute,
 } from './types'
 
-// ---- small helpers ----
+// ---- 辅助函数 ----
 const R = Math.random
 const fl = (n: number) => Math.floor(n)
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -25,7 +25,7 @@ export function uid(prefix = 'it'): string {
   return `${prefix}_${Date.now().toString(36)}_${_idc.toString(36)}_${fl(R() * 1e6).toString(36)}`
 }
 
-/** Attribute types whose display value carries a %. */
+/** 显示值带 % 的属性类型。 */
 export function isPercentDisplay(type: AttrType): boolean {
   return (
     type === 'CRIT' ||
@@ -46,15 +46,15 @@ function showVal(type: AttrType, value: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Enhancement (强化)
+// 强化 (强化)
 // ---------------------------------------------------------------------------
-/** Multiplier applied to base entries at a given enhancement level. */
+/** 在指定强化等级下作用于基础词条的乘数。 */
 export function enchantMultiplier(lv: number): number {
   if (!lv) return 1
   return Math.pow(1.055, Math.pow(lv, 1.1))
 }
 
-/** Return a copy of base entries with the enhancement level baked in. */
+/** 返回已叠加强化等级的基础词条副本。 */
 export function applyEnchant(entries: Entry[], lv: number): Entry[] {
   const a = enchantMultiplier(lv)
   return entries.map((item) => {
@@ -64,9 +64,9 @@ export function applyEnchant(entries: Entry[], lv: number): Entry[] {
 }
 
 // ---------------------------------------------------------------------------
-// Item generation
+// 物品生成
 // ---------------------------------------------------------------------------
-/** Roll a base-entry value (per-slot rules preserved from the original). */
+/** 掷取一个基础词条数值（保留原版的分部位规则）。 */
 function rollBase(slot: ItemType, type: AttrType, lv: number, qc: number, valCoef: number): number {
   switch (type) {
     case 'ATK':
@@ -77,20 +77,20 @@ function rollBase(slot: ItemType, type: AttrType, lv: number, qc: number, valCoe
     case 'CRIT':
       if (slot === 'weapon') return fl(fl(R() * 5 + 7) * qc)
       if (slot === 'armor') return fl(fl(R() * 5 + 5) * qc)
-      return fl(fl(R() * 5 + 10) * qc * valCoef) // ring / neck use valCoef
+      return fl(fl(R() * 5 + 10) * qc * valCoef) // 戒指 / 项链使用 valCoef
     case 'CRITDMG':
       if (slot === 'weapon' || slot === 'armor') return fl(fl(R() * 20 + 20) * qc)
-      return fl(fl(R() * 20 + 30) * qc * valCoef) // ring / neck use valCoef
+      return fl(fl(R() * 20 + 30) * qc * valCoef) // 戒指 / 项链使用 valCoef
     case 'BLOC':
       if (slot === 'armor') return Math.max(1, fl(fl(lv * 1.3 + (R() * lv / 2 + 1)) * qc))
-      return Math.max(1, fl(fl(lv * 0.4 + (R() * lv / 2 + 1)) * qc)) // weapon / neck
+      return Math.max(1, fl(fl(lv * 0.4 + (R() * lv / 2 + 1)) * qc)) // 武器 / 项链
     default:
       return 0
   }
 }
 
-// ---- Affix quality value system (extra + innate affixes) ----
-/** Baseline magnitude of an affix type before quality & enchant. */
+// ---- 词条品质数值系统（额外 + 本体词条）----
+/** 词条类型在品质与强化前的基准量值。 */
 function baseAffixMagnitude(type: AttrType, lv: number): number {
   switch (type) {
     case 'ATK': return lv * 1.4
@@ -110,19 +110,19 @@ function baseAffixMagnitude(type: AttrType, lv: number): number {
   }
 }
 
-/** Value at quality q∈[0,1]: 0.5x (q=0) .. 1.5x (q=1) of the baseline, scaled by quality coef. */
+/** 品质 q∈[0,1] 下的数值：基准量的 0.5x (q=0) .. 1.5x (q=1)，并按品质系数缩放。 */
 export function affixValue(type: AttrType, lv: number, qc: number, q: number): number {
   const mag = baseAffixMagnitude(type, lv) * qc * (0.5 + q)
   return isPercentDisplay(type) ? round2(mag) : Math.max(1, Math.round(mag))
 }
 
-/** Build an affix entry with a given quality roll. */
+/** 以给定的品质掷值构建一个词条。 */
 function makeAffix(type: AttrType, name: string, lv: number, qc: number, q: number): Entry {
   const value = affixValue(type, lv, qc, q)
   return { type, name, value, showVal: showVal(type, value), q }
 }
 
-/** Roll a random quality index using the weighted table. */
+/** 使用加权表掷取一个随机品质索引。 */
 function randomQualityIndex(): QualityIndex {
   const r = R()
   let acc = 0
@@ -134,10 +134,10 @@ function randomQualityIndex(): QualityIndex {
 }
 
 /**
- * Generate a new item.
- * @param slot which equipment slot
- * @param qualityIndex 0..4, or -1 to roll a random quality
- * @param lv item level, or 0 to roll a random level (1..39)
+ * 生成一件新物品。
+ * @param slot 装备部位
+ * @param qualityIndex 0..4，或 -1 表示随机掷取品质
+ * @param lv 物品等级，或 0 表示随机掷取等级 (1..39)
  */
 export function createItem(slot: ItemType, qualityIndex: number, lv?: number): Item {
   const table = qualityTable(slot)
@@ -186,21 +186,21 @@ export function createItem(slot: ItemType, qualityIndex: number, lv?: number): I
 }
 
 // ---------------------------------------------------------------------------
-// Reforge (重铸, change type) & 品质洗礼 (baptism, reroll value quality)
+// 重铸 (重铸, 更改类型) & 品质洗礼 (洗礼, 重掷数值品质)
 // ---------------------------------------------------------------------------
-/** Reforge a base-stat affix into a specific type at fixed mid quality (固定数值). */
+/** 将一条基础属性词条重铸为指定类型，品质固定为中等 (固定数值)。 */
 export function createEntryOfType(lv: number, qc: number, type: AttrType): Entry {
   const name = RECAST_POOL.find((p) => p.type === type)?.name ?? type
   return makeAffix(type, name, lv, qc, 0.5)
 }
 
-/** Reforge into a random base-stat type at fixed mid quality. */
+/** 重铸为随机的基础属性类型，品质固定为中等。 */
 export function createRandomEntry(lv: number, qc: number): Entry {
   const pick = RECAST_POOL[fl(R() * RECAST_POOL.length)]
   return createEntryOfType(lv, qc, pick.type)
 }
 
-/** 品质洗礼: reroll one affix's quality (keeps type / name / locked). */
+/** 品质洗礼：重掷一条词条的品质（保留类型 / 名称 / 锁定）。 */
 export function baptizeAffix(affix: Entry, lv: number, qc: number): Entry {
   const q = R()
   const value = affixValue(affix.type, lv, qc, q)
@@ -208,7 +208,7 @@ export function baptizeAffix(affix: Entry, lv: number, qc: number): Entry {
 }
 
 // ---------------------------------------------------------------------------
-// Enhancement cost / reforge cost
+// 强化花费 / 重铸花费
 // ---------------------------------------------------------------------------
 export function strengthenNeedGold(item: Item): number {
   return (
@@ -220,12 +220,12 @@ export function recastNeedGold(item: Item): number {
   return fl((item.lv * item.quality.qualityCoefficient * (200 + 10 * item.lv)) / 4)
 }
 
-/** 品质洗礼 cost — grows with the number of locked affixes (locking is a premium). */
+/** 品质洗礼花费——随锁定词条数量增长（锁定需额外付费）。 */
 export function baptizeNeedGold(item: Item, lockedCount: number): number {
   return fl(recastNeedGold(item) * (1 + lockedCount * 0.8))
 }
 
-/** Chance an enhancement attempt succeeds at the given current level. */
+/** 在给定当前等级下一次强化尝试的成功几率。 */
 export function enchantSuccessRate(lv: number): number {
   if (lv <= 5) return 1
   if (lv === 6) return 0.8
@@ -235,12 +235,12 @@ export function enchantSuccessRate(lv: number): number {
   return 0.2
 }
 
-/** Gold from selling an item. */
+/** 出售一件物品获得的金币。 */
 export function sellPrice(item: Item): number {
   return fl(item.lv * item.quality.qualityCoefficient * 30)
 }
 
-/** Rough power score for an item — used to rank the backpack. Cross-slot comparable. */
+/** 物品的粗略战力评分——用于背包排序。可跨部位比较。 */
 const SCORE_W: Record<AttrType, number> = {
   ATK: 2,
   DEF: 1.5,
@@ -266,43 +266,43 @@ export function itemScore(item: Item): number {
   return Math.round(s)
 }
 
-/** Shop listing price for an item. */
+/** 物品在商店的挂牌价格。 */
 export function shopPrice(item: Item): number {
   return fl(item.lv * item.quality.qualityCoefficient * (250 + 20 * item.lv))
 }
 
 // ---------------------------------------------------------------------------
-// Leveling / experience
+// 升级 / 经验
 // ---------------------------------------------------------------------------
 export const LEVEL_CAP = 999
 
-/** 1 灵石 converts to this much EXP. */
+/** 1 灵石 可转换为的 EXP 数量。 */
 export const LINGSHI_TO_EXP = 10
 
-/** Passive EXP gained per second, scaling with level. */
+/** 每秒获得的被动 EXP，随等级缩放。 */
 export function autoExpPerSec(lv: number): number {
   return Math.max(1, lv)
 }
 
-/** EXP required to advance from `lv` to `lv + 1`. */
+/** 从 `lv` 升到 `lv + 1` 所需的 EXP。 */
 export function expForLevel(lv: number): number {
   return Math.floor(40 * Math.pow(lv, 1.5) + 60 * lv)
 }
 
-/** Total EXP needed to raise exactly `n` full levels from the state (lv, exp). */
+/** 从状态 (lv, exp) 起恰好提升 `n` 个整级所需的总 EXP。 */
 export function expToRaise(lv: number, exp: number, n: number): number {
   let total = Math.max(0, expForLevel(lv) - exp)
   for (let k = 1; k < n; k++) total += expForLevel(lv + k)
   return total
 }
 
-/** 灵石 cost to raise `n` levels from (lv, exp) — priced at LINGSHI_TO_EXP exp per 灵石. */
+/** 从 (lv, exp) 提升 `n` 级所需的 灵石 花费——按每 灵石 LINGSHI_TO_EXP 点 exp 计价。 */
 export function lingshiForLevels(lv: number, exp: number, n: number): number {
   return Math.ceil(expToRaise(lv, exp, n) / LINGSHI_TO_EXP)
 }
 
 // ---------------------------------------------------------------------------
-// Primary character attributes (力量 / 体魄 / ...) — grow with level, feed combat
+// 主属性 (力量 / 体魄 / ...) —— 随等级成长，供给战斗
 // ---------------------------------------------------------------------------
 export interface Primary {
   STR: number // 力量 → 攻击
@@ -326,7 +326,7 @@ export function computePrimary(lv: number, reinCount: number): Primary {
   }
 }
 
-/** How much each primary attribute contributes to combat stats. */
+/** 每点主属性对战斗属性的贡献量。 */
 export const PRIMARY_EFFECT = {
   STR: { stat: '攻击', per: 1 },
   VIT: { stat: '生命', per: 5 },
@@ -337,7 +337,7 @@ export const PRIMARY_EFFECT = {
 } as const
 
 // ---------------------------------------------------------------------------
-// Player attribute calculation (the heart of the stat sheet)
+// 玩家属性计算（属性面板的核心）
 // ---------------------------------------------------------------------------
 export function computePlayerAttribute(
   equipment: { weapon: Item; armor: Item; ring: Item; neck: Item },
@@ -424,13 +424,13 @@ export function computePlayerAttribute(
 }
 
 // ---------------------------------------------------------------------------
-// Dungeon generation
+// 副本生成
 // ---------------------------------------------------------------------------
 function difficultyName(d: DungeonDifficulty): string {
   return d === 1 ? '普通' : d === 2 ? '困难' : '极难'
 }
 
-/** Themed dungeon names by level tier. */
+/** 按等级层级划分的主题化副本名称。 */
 const DUNGEON_NAMES: { max: number; names: string[] }[] = [
   { max: 15, names: ['新手林地', '野狼谷', '碎石坡', '萤火沼泽', '蛛丝洞窟', '青苔矿洞', '落叶谷'] },
   { max: 40, names: ['幽暗密林', '白骨荒原', '赤焰峡谷', '寒霜山道', '毒雾湿地', '废弃矿坑', '群狼岭'] },
@@ -466,7 +466,7 @@ export function createRandomDungeon(lv: number, difficulty: DungeonDifficulty): 
   const lvMin = Math.max(1, lv - 2)
   const lvMax = Math.max(lvMin, lv + 2)
 
-  // 4 monsters climb from lvMin toward the boss; boss sits at lvMax.
+  // 4 个怪物从 lvMin 逐级逼近首领；首领位于 lvMax。
   const events: DungeonEvent[] = []
   for (let i = 0; i < 4; i++) events.push(monsterEvent(Math.max(1, lv - 2 + i), df))
   events.push({
@@ -499,7 +499,7 @@ export function createRandomDungeon(lv: number, difficulty: DungeonDifficulty): 
   }
 }
 
-/** Build the dungeon list around a player level (matches original refresh rules). */
+/** 围绕玩家等级构建副本列表（与原版刷新规则一致）。 */
 export function refreshDungeonList(playerLv: number): Dungeon[] {
   const list: Dungeon[] = []
   const Co = [0.85, 0.1, 0.05]
@@ -531,7 +531,7 @@ export function refreshDungeonList(playerLv: number): Dungeon[] {
   return list
 }
 
-/** Build an endless-mode dungeon for a given endless level. */
+/** 为给定的无尽层数构建一个无尽模式副本。 */
 export function createEndlessDungeon(endlessLv: number): Dungeon {
   const d = createRandomDungeon(endlessLv * 5, 3)
   d.lv = endlessLv
@@ -539,5 +539,67 @@ export function createEndlessDungeon(endlessLv: number): Dungeon {
   d.lvMax = endlessLv
   d.type = 'endless'
   d.name = `无尽 · 第${endlessLv}层`
+  return d
+}
+
+// ---------- 深渊 (深渊) 模式 ----------
+// 与无尽并行的纯掉落模式：需消耗金币进入，只掉落装备，且
+// 掉率提升（无 灵石）。玩家选择一个难度档位 (副本级别)，其数值成长
+// 刻意设计为非等差；层级 (深渊层级) 像无尽一样递增。
+
+export interface AbyssTier {
+  key: string
+  name: string
+  /** 副本级别 —— 用于花费与怪物强度的基准等级（非等差）。 */
+  level: number
+  /** 在基准等级属性之上的怪物 HP/ATK 乘数。 */
+  monsterMul: number
+  /** 相对普通副本的基础装备掉率乘数。 */
+  dropMul: number
+}
+
+export const ABYSS_TIERS: AbyssTier[] = [
+  { key: 't1', name: '微光裂隙', level: 20, monsterMul: 1.0, dropMul: 1.6 },
+  { key: 't2', name: '幽暗深穴', level: 45, monsterMul: 1.7, dropMul: 2.2 },
+  { key: 't3', name: '炼狱熔渊', level: 90, monsterMul: 2.8, dropMul: 3.0 },
+  { key: 't4', name: '虚空回廊', level: 160, monsterMul: 4.5, dropMul: 3.9 },
+  { key: 't5', name: '混沌深渊', level: 280, monsterMul: 7.2, dropMul: 5.0 },
+]
+
+export function abyssTierByKey(key: string): AbyssTier {
+  return ABYSS_TIERS.find((t) => t.key === key) ?? ABYSS_TIERS[0]
+}
+
+/** 进入所需金币：副本级别 × 角色等级 × 深渊层级。 */
+export function abyssEntryCost(tier: AbyssTier, charLv: number, abyssLv: number): number {
+  return Math.floor(tier.level * Math.max(1, charLv) * Math.max(1, abyssLv))
+}
+
+/** 为某个档位 + 层级构建一个深渊副本：怪物更强、无 灵石、掉落提升。 */
+export function createAbyssDungeon(tier: AbyssTier, abyssLv: number): Dungeon {
+  const effLv = Math.max(1, Math.round(tier.level * (1 + (abyssLv - 1) * 0.12)))
+  const d = createRandomDungeon(effLv, 3)
+  d.type = 'abyss'
+  d.lv = abyssLv
+  d.lvMin = effLv
+  d.lvMax = effLv
+  d.name = `${tier.name} · 第${abyssLv}层`
+  // 层级越高掉落越多；按档位缩放怪物强度
+  const dropBoost = tier.dropMul * (1 + (abyssLv - 1) * 0.05)
+  for (const ev of d.eventType) {
+    ev.attribute.HP = fl(ev.attribute.HP * tier.monsterMul)
+    ev.attribute.ATK = fl(ev.attribute.ATK * tier.monsterMul)
+    ev.trophy.gold = 0 // 深渊不给 灵石
+    // 在保持品质分布的前提下提升总掉落率。equip[] 是一个按品质划分的
+    // 概率向量，以有序累积掷取的方式消费（最差品质在前），
+    // 因此逐桶相乘会把概率前置堆到最差档位上。
+    // 改为整体缩放该向量，使其总和 (= 总掉落几率) 向上限靠拢。
+    const sum = ev.trophy.equip.reduce((s, p) => s + p, 0)
+    if (sum > 0) {
+      const target = Math.max(sum, Math.min(0.995, sum * dropBoost))
+      const k = target / sum
+      ev.trophy.equip = ev.trophy.equip.map((p) => p * k)
+    }
+  }
   return d
 }

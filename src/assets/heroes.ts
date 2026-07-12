@@ -12,7 +12,7 @@ export interface HeroDef {
   img: string
 }
 
-/** Selectable battle avatars. */
+/** 可选择的战斗头像。 */
 export const HEROES: HeroDef[] = [
   { id: 'knight', name: '骑士', desc: '银甲蓝披风，剑与盾', img: knight },
   { id: 'ranger', name: '游侠', desc: '绿袍兜帽，双匕首', img: ranger },

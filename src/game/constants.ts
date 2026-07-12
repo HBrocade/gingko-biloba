@@ -1,6 +1,6 @@
 import type { AttrType, ItemType, Quality } from './types'
 
-/** Quality tiers for weapon & armor (higher coefficients). */
+/** 武器和护甲的品质等级（系数更高）。 */
 export const QUALITY_WEAPON_ARMOR: Quality[] = [
   { name: '破旧', qualityCoefficient: 0.7, probability: '0.25', color: '#a1a1a1', extraEntryNum: 1 },
   { name: '普通', qualityCoefficient: 1, probability: '0.55', color: '#ffffff', extraEntryNum: 2 },
@@ -9,7 +9,7 @@ export const QUALITY_WEAPON_ARMOR: Quality[] = [
   { name: '独特', qualityCoefficient: 2.2, probability: '0', color: '#ff3b3b', extraEntryNum: 5 },
 ]
 
-/** Quality tiers for ring & neck (slightly lower coefficients). */
+/** 戒指和项链的品质等级（系数略低）。 */
 export const QUALITY_RING_NECK: Quality[] = [
   { name: '破旧', qualityCoefficient: 0.6, probability: '0.25', color: '#a1a1a1', extraEntryNum: 1 },
   { name: '普通', qualityCoefficient: 0.9, probability: '0.55', color: '#ffffff', extraEntryNum: 2 },
@@ -22,10 +22,10 @@ export function qualityTable(itemType: ItemType): Quality[] {
   return itemType === 'weapon' || itemType === 'armor' ? QUALITY_WEAPON_ARMOR : QUALITY_RING_NECK
 }
 
-/** Probability weights used when rolling a random quality. */
+/** 随机抽取品质时使用的概率权重。 */
 export const QUALITY_PROBABILITY = [0.25, 0.55, 0.15, 0.05]
 
-/** Display metadata for the equipment slots. */
+/** 装备槽位的展示元数据。 */
 export const SLOT_META: Record<ItemType, { label: string; icon: string }> = {
   weapon: { label: '武器', icon: '⚔️' },
   armor: { label: '护甲', icon: '🛡️' },
@@ -33,7 +33,7 @@ export const SLOT_META: Record<ItemType, { label: string; icon: string }> = {
   neck: { label: '项链', icon: '📿' },
 }
 
-/** Display metadata for attribute types (name + icon). */
+/** 属性类型的展示元数据（名称 + 图标）。 */
 export const ATTR_META: Record<AttrType, { name: string; icon: string; percent?: boolean }> = {
   ATK: { name: '攻击力', icon: '🗡️' },
   DEF: { name: '防御力', icon: '🛡️' },
@@ -51,7 +51,7 @@ export const ATTR_META: Record<AttrType, { name: string; icon: string; percent?:
   SKILLDMG: { name: '技能伤害', icon: '🔵', percent: true },
 }
 
-/** Text color for special damage affixes (黄字 / 白字 / 技能伤害). */
+/** 特殊伤害词条的文本颜色（黄字 / 白字 / 技能伤害）。 */
 export const AFFIX_COLOR: Partial<Record<AttrType, string>> = {
   DMGAMP: '#ffd23f', // 黄字
   DMGADD: '#ffffff', // 白字

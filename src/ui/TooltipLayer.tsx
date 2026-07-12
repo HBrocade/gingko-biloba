@@ -2,7 +2,7 @@ import { useTooltip } from './tooltipStore'
 import { ItemCard } from './ItemCard'
 import { CompareDelta } from './CompareDelta'
 
-/** Renders the floating item tooltip (with optional comparison card + stat delta). */
+/** 渲染浮动的物品 tooltip（可选带对比卡片 + 属性差值）。 */
 export function TooltipLayer() {
   const { item, compare, x, y } = useTooltip()
   if (!item) return null

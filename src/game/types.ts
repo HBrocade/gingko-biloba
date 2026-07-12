@@ -1,6 +1,6 @@
-// ---- Core type definitions for the idle RPG ----
+// ---- 放置类 RPG 的核心类型定义 ----
 
-/** Every attribute an entry / affix can grant. */
+/** 词条 / 词缀可赋予的每一种属性。 */
 export type AttrType =
   | 'ATK'
   | 'DEF'
@@ -19,7 +19,7 @@ export type AttrType =
 
 export type ItemType = 'weapon' | 'armor' | 'ring' | 'neck'
 
-/** Quality tier index: 0 破旧 · 1 普通 · 2 神器 · 3 史诗 · 4 独特 */
+/** 品质等级索引：0 破旧 · 1 普通 · 2 神器 · 3 史诗 · 4 独特 */
 export type QualityIndex = 0 | 1 | 2 | 3 | 4
 
 export interface Quality {
@@ -30,17 +30,17 @@ export interface Quality {
   extraEntryNum: number
 }
 
-/** A single stat line on an item (either a base entry or a random affix). */
+/** 装备上的单条属性（基础词条或随机词缀）。 */
 export interface Entry {
   type: AttrType
   name: string
   value: number
   showVal: string
-  /** Only present on base entries — scales the value with item level. */
+  /** 仅出现在基础词条上——根据装备等级缩放数值。 */
   valCoefficient?: number
-  /** Quality roll 0..1 for reforgeable/innate affixes — 品质洗礼 rerolls this. */
+  /** 可重铸/固有词缀的品质掷值 0..1——品质洗礼会重掷该值。 */
   q?: number
-  /** Whether this affix is locked (protected from 品质洗礼). */
+  /** 该词缀是否被锁定（不受品质洗礼影响）。 */
   locked?: boolean
 }
 
@@ -52,7 +52,7 @@ export interface ItemTemplate {
 }
 
 export interface Item {
-  /** Unique runtime id so React lists / inventory ops are stable. */
+  /** 唯一运行时 id，保证 React 列表 / 背包操作的稳定性。 */
   id: string
   lv: number
   itemType: ItemType
@@ -69,11 +69,11 @@ export interface Item {
   innate?: Entry[]
   enchantlvl: number
   locked?: boolean
-  /** Shop price, only present on shop items. */
+  /** 商店价格，仅出现在商店物品上。 */
   gold?: number
 }
 
-/** A computed player attribute value + display string. */
+/** 计算得到的玩家属性值 + 显示字符串。 */
 export interface AttrValue {
   value: number
   showValue: string
@@ -88,9 +88,9 @@ export interface PlayerAttribute {
   CRITDMG: AttrValue
   BLOC: AttrValue
   EVA: AttrValue
-  /** Damage-taken ratio derived from armor (0..1, lower = better). */
+  /** 由护甲推导的受伤比例（0..1，越低越好）。 */
   REDUCDMG: number
-  /** Damage-per-second (raw auto-attack, before 黄字/白字 multipliers). */
+  /** 每秒伤害（原始普攻，黄字/白字 加成之前）。 */
   DPS: number
   /** 黄字 · 伤害增幅 %：取所有装备的最大值。 */
   DMGAMP: number
@@ -121,12 +121,12 @@ export type DungeonDifficulty = 1 | 2 | 3
 export interface DungeonEvent {
   name: string
   type: 'monster' | 'boss'
-  /** This event's own level (events span the dungeon's level range). */
+  /** 该事件自身的等级（事件覆盖副本的等级范围）。 */
   lv: number
   attribute: { HP: number; ATK: number }
   trophy: {
     gold: number
-    /** Drop probabilities per quality [破旧, 普通, 神器, 史诗]. */
+    /** 各品质的掉落概率 [破旧, 普通, 神器, 史诗]。 */
     equip: number[]
   }
 }
@@ -135,9 +135,9 @@ export interface Dungeon {
   id: string
   name: string
   eventNum: number
-  /** Representative (center) level. */
+  /** 代表性（中心）等级。 */
   lv: number
-  /** Level range spanned by this dungeon's events. */
+  /** 该副本事件所覆盖的等级范围。 */
   lvMin: number
   lvMax: number
   needDPS: number
@@ -146,8 +146,8 @@ export interface Dungeon {
   top: string
   left: string
   eventType: DungeonEvent[]
-  /** Set for the endless dungeon. */
-  type?: 'endless'
+  /** 用于特殊模式：无尽（灵石）或深渊（装备）。 */
+  type?: 'endless' | 'abyss'
 }
 
 export type SysInfoType = '' | 'warning' | 'battle' | 'win' | 'trophy'

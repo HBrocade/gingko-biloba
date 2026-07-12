@@ -1,19 +1,19 @@
 import type { AttrType, Entry, ItemTemplate, ItemType } from './types'
 
-/** Helper to declare a base entry template concisely. */
+/** 简洁地声明基础词条模板的辅助函数。 */
 function e(type: AttrType, name: string, valCoefficient: number): Entry {
   return { type, name, valCoefficient, value: 0, showVal: '' }
 }
 
-/** A random-affix pool option (value gets rolled at generation time). */
+/** 随机词缀池的一个选项（数值在生成时随机掷出）。 */
 function a(type: AttrType, name: string): Entry {
   return { type, name, value: 0, showVal: '' }
 }
 
-/** Innate affixes present on every slot: 暴击伤害 + 白字 + 技伤（黄字不在池内，单独固定掉率）。 */
+/** 每个部位都具备的固有词缀：暴击伤害 + 白字 + 技伤（黄字不在池内，单独固定掉率）。 */
 const UNIVERSAL_INNATE: Entry[] = [a('CRITDMG', '暴击伤害'), a('DMGADD', '伤害附加'), a('SKILLDMG', '技能伤害')]
 
-/** How many (distinct-type) innate affixes an item gets, by quality name. */
+/** 按品质名称决定物品获得多少个（不同类型的）固有词缀。 */
 export const INNATE_COUNT: Record<string, number> = { 破旧: 0, 普通: 1, 神器: 2, 史诗: 3, 独特: 4 }
 
 /** 黄字（伤害增幅）：所有品质装备统一的独立掉率——最稀有，绝大多数装备不产生。 */
@@ -130,7 +130,7 @@ export const ITEM_DATA: Record<ItemType, SlotData> = {
   neck: { category: NECK_CATEGORY, unique: NECK_UNIQUE, extra: NECK_EXTRA, innatePool: NECK_INNATE, slotIcon: '📿' },
 }
 
-/** Reforge target types — base stats only (可重铸的基础词条). */
+/** 重铸的目标类型——仅限基础属性（可重铸的基础词条）。 */
 export const RECAST_POOL: { type: AttrType; name: string }[] = [
   { type: 'ATK', name: '攻击力' },
   { type: 'HP', name: '生命值' },

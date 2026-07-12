@@ -13,6 +13,9 @@ import type {
 import {
   computePlayerAttribute,
   createEndlessDungeon,
+  createAbyssDungeon,
+  abyssEntryCost,
+  abyssTierByKey,
   autoExpPerSec,
   baptizeAffix,
   baptizeNeedGold,
@@ -50,7 +53,6 @@ import {
   maxMpFor,
   mpRegenFor,
   ownedSkillDefs,
-  simulateSkillDamage,
   skillById,
   skillDpsDisplay,
 } from './skills'
@@ -58,18 +60,47 @@ import {
 const SLOTS: ItemType[] = ['weapon', 'armor', 'ring', 'neck']
 const MAX_LOG = 60
 
-// ---- battle timing (module-scoped, not part of rendered state) ----
+// ---- 战斗计时（模块级作用域，不属于渲染状态） ----
 let battleTimer: ReturnType<typeof setInterval> | null = null
 const BATTLE_TICK_MS = 50
 const MOVE_STEP_BASE = 1.0
+const ENEMY_ATK_MS = 700 // 实时对决中敌人的挥击间隔
+const MAX_FIGHT_MS = 15000 // 僵局保护：超过这个时长后强制分出胜负
+// 等比例放大双方的每次命中伤害，使战斗更快结束，且
+// 胜负结果与承受的总伤害保持不变 —— 纯粹是节奏调整，而非数值平衡。
+const COMBAT_SPEED = 2
+let fxSeq = 0 // 单调递增的 id，便于 UI 重新触发每次命中的动画
+
+/** 一次命中，暴露给战斗 UI 用于显示伤害数字 / 特效。 */
+export interface FightHitFx {
+  dmg: number
+  crit?: boolean
+  skill?: string
+  id: number
+}
+
+/** 当前实时战斗的实时状态（非战斗时为 null）。 */
+export interface FightState {
+  enemyHp: number
+  enemyMaxHp: number
+  blocLeft: number // 剩余的一次性格挡缓冲（对应解析模型中的 CURHP+bloc）
+  dmgTaken: number // 本场战斗中英雄累计承受的伤害
+  fightStart: number
+  nextHeroHit: number
+  nextEnemyHit: number
+  skillReady: Record<string, number> // skillId -> 下次可释放的时间戳
+  heroFx: FightHitFx | null // 英雄对敌人的最近一次命中
+  enemyFx: FightHitFx | null // 敌人对英雄的最近一次命中
+}
 
 export interface BattleState {
   dungeon: Dungeon
-  left: number // 0..100 progress across the map
-  nextEvent: number // 1..5 (index of the next event to resolve)
+  left: number // 0..100 地图上的推进进度
+  nextEvent: number // 1..5（下一个待处理事件的索引）
   phase: 'move' | 'fight'
-  fightUntil: number // timestamp when the current fight pause ends
+  fightUntil: number // 胜利后停顿结束的时间戳
   lastResult: { win: boolean; name: string; dmg: number } | null
+  fight: FightState | null
 }
 
 interface Equipment {
@@ -84,6 +115,8 @@ export interface GameState {
   exp: number
   gold: number
   endlessLv: number
+  abyssLv: number
+  abyssTier: string
   reincarnation: Reincarnation
   reincarnationAttribute: ReincarnationAttribute
   equipment: Equipment
@@ -97,7 +130,7 @@ export interface GameState {
   maxMp: number
   mpRegen: number
   skillDPS: number
-  /** Fully-modified DPS (auto + skill, incl. 黄字/白字/技能伤害 multipliers) — for display. */
+  /** 完整加成后的 DPS（自动 + 技能，含 黄字/白字/技能伤害 倍率）—— 用于显示。 */
   totalDPS: number
 
   backpack: (Item | null)[]
@@ -109,10 +142,12 @@ export interface GameState {
 
   dungeons: Dungeon[]
   selectedDungeon: Dungeon | null
-  dungeonCd: number // refresh cooldown seconds remaining
+  dungeonCd: number // 刷新冷却剩余秒数
   reChallenge: boolean
   upEChallenge: boolean
   reEChallenge: boolean
+  upAChallenge: boolean
+  reAChallenge: boolean
 
   battle: BattleState | null
   sysInfo: SysInfo[]
@@ -120,7 +155,7 @@ export interface GameState {
   strengthenTarget: Item | null
   strengthenIndex: number
 
-  // ---- actions ----
+  // ---- 操作 ----
   setHero: (id: string) => void
   buySkill: (id: string) => void
   gainExp: (amount: number) => void
@@ -151,9 +186,12 @@ export interface GameState {
   refreshDungeons: (force?: boolean) => void
   selectDungeon: (d: Dungeon) => void
   selectEndless: () => void
+  selectAbyss: () => void
+  setAbyssTier: (key: string) => void
   closeDungeon: () => void
   resetEndlessLv: () => void
-  setChallengeFlag: (key: 'reChallenge' | 'upEChallenge' | 'reEChallenge', v: boolean) => void
+  resetAbyssLv: () => void
+  setChallengeFlag: (key: 'reChallenge' | 'upEChallenge' | 'reEChallenge' | 'upAChallenge' | 'reAChallenge', v: boolean) => void
 
   beginBattle: () => void
   stopBattle: (manual?: boolean) => void
@@ -187,7 +225,7 @@ function emptyBackpack(): (Item | null)[] {
   return new Array(BACKPACK_SIZE).fill(null)
 }
 
-/** Generate a fresh set of shop items scaled to the player level. */
+/** 生成一批随玩家等级缩放的全新商店物品。 */
 function buildShop(playerLv: number): (Item | null)[] {
   const equip = [0.4, 0.342, 0.25, 0.008] // 普通 / 神器 / 史诗 / 独特
   const shop: (Item | null)[] = new Array(SHOP_SIZE).fill(null)
@@ -199,7 +237,7 @@ function buildShop(playerLv: number): (Item | null)[] {
     for (let q = 0; q < 4; q++) {
       acc += equip[q]
       if (r < acc) {
-        qua = q + 1 // shop qualities are 普通..独特 (index 1..4)
+        qua = q + 1 // 商店品质为 普通..独特（索引 1..4）
         break
       }
     }
@@ -220,7 +258,7 @@ function nowTime(): string {
 }
 
 export const useGame = create<GameState>((set, get) => {
-  // -- internal helpers that operate on the live store --
+  // -- 操作实时 store 的内部辅助函数 --
 
   const pushLog = (info: SysInfo) => {
     const sysInfo = [...get().sysInfo, { ...info, time: nowTime() }]
@@ -266,14 +304,15 @@ export const useGame = create<GameState>((set, get) => {
     set({ backpack })
   }
 
-  // -- award gold + loot for a single won event --
+  // -- 为单个获胜事件发放灵石 + 战利品 --
   const awardTrophy = (dungeon: Dungeon, event: DungeonEvent) => {
     const isEndless = dungeon.type === 'endless'
-    const lv = event.lv // drops scale to the event's own level (within the dungeon's range)
+    const isAbyss = dungeon.type === 'abyss'
+    const lv = event.lv // 掉落按事件自身的等级缩放（在副本的等级范围内）
     const state = get()
     const items: Item[] = []
 
-    // unique drop (boss only, non-endless)
+    // 独特掉落（仅 boss，非无尽）
     if (event.type === 'boss' && !isEndless) {
       const threshold = 1 - 0.02 * ((dungeon.difficulty - 1) * 2 + 1)
       if (Math.random() > threshold) {
@@ -283,7 +322,7 @@ export const useGame = create<GameState>((set, get) => {
       }
     }
 
-    // normal drop by quality table
+    // 按品质表进行的普通掉落
     const equip = event.trophy.equip
     let equipQua = -1
     const r = Math.random()
@@ -299,17 +338,22 @@ export const useGame = create<GameState>((set, get) => {
     if (equipQua !== -1) {
       const slot = SLOTS[Math.floor(Math.random() * 4)]
       const rolled = createItem(slot, equipQua, lv)
-      let goldRatio = 1
-      let dropItems = [...items, rolled]
       if (isEndless) {
-        goldRatio = 1.5
-        dropItems = [] // endless drops no equipment
+        // 无尽：不掉装备，只掉提升后的 灵石
+        const gold = Math.floor(event.trophy.gold * 1.5)
+        get().addGold(gold)
+        pushLog({ type: 'trophy', msg: `获得灵石 ${gold}` })
+        return
       }
-      const gold = Math.floor(event.trophy.gold * goldRatio)
-      get().addGold(gold)
-      pushLog({ type: 'trophy', msg: `获得灵石 ${gold}`, equip: dropItems })
-      if (isEndless) return
-
+      const dropItems = [...items, rolled]
+      if (isAbyss) {
+        // 深渊：只掉装备，不掉 灵石
+        pushLog({ type: 'trophy', msg: '深渊掉落装备', equip: dropItems })
+      } else {
+        const gold = Math.floor(event.trophy.gold)
+        get().addGold(gold)
+        pushLog({ type: 'trophy', msg: `获得灵石 ${gold}`, equip: dropItems })
+      }
       for (const it of dropItems) {
         if (state.autoSell[equipQua] && it.quality.name !== '独特') {
           const g = sellPrice(it)
@@ -320,58 +364,53 @@ export const useGame = create<GameState>((set, get) => {
           if (!ok) pushLog({ type: 'warning', msg: '背包已满，装备无法拾取！' })
         }
       }
-    } else {
-      let goldRatio = 1
-      if (isEndless) goldRatio = 2.6
+    } else if (!isAbyss) {
+      // 没有掉出装备 —— 发放 灵石（深渊 未命中时不给任何奖励）
+      const goldRatio = isEndless ? 2.6 : 1
       const gold = Math.floor(event.trophy.gold * goldRatio)
       get().addGold(gold)
       pushLog({ type: 'trophy', msg: `获得灵石 ${gold}` })
     }
   }
 
-  // -- resolve one battle event, mutate CURHP, return outcome --
-  const resolveEvent = (event: DungeonEvent): { win: boolean; dmg: number; skillDmg: number } => {
-    const s = get()
-    const a = s.attribute
-    const reduc = a.REDUCDMG
-    const bloc = a.BLOC.value
-    const mHP = event.attribute.HP
-    const mATK = event.attribute.ATK || 0.0001
+  // -- 实时战斗辅助函数 --
+  const initFight = (event: DungeonEvent, now: number): FightState => ({
+    enemyHp: event.attribute.HP,
+    enemyMaxHp: event.attribute.HP,
+    blocLeft: get().attribute.BLOC.value,
+    dmgTaken: 0,
+    fightStart: now,
+    nextHeroHit: now, // 接触即挥击
+    nextEnemyHit: now + 350, // 敌人在首次挥击前会短暂预警
+    skillReady: {},
+    heroFx: null,
+    enemyFx: null,
+  })
 
-    // damage multipliers: 黄字(取最大) × 白字(加算) apply to all damage; 技能伤害(乘算) to skills only
+  // 当前属性对阵单个怪物时的每次命中战斗数值。
+  // 英雄每秒自动 DPS 保持等于 a.DPS（解析模型假设
+  // 约 1 次挥击/秒），所以更高的 BATTLESPEED 意味着更多、更小的挥击 —— 而非更高 DPS。
+  // 敌人每秒 DPS = REDUCDMG × ATK，BLOC 作为一次性缓冲 —— 与
+  // 旧的解析式 playerDeadTime = (CURHP + bloc) / reduc / mATK 一致。
+  const combatProfile = (event: DungeonEvent) => {
+    const a = get().attribute
+    const rA = get().reincarnationAttribute
+    const reduc = a.REDUCDMG
+    const mATK = event.attribute.ATK || 0.0001
     const ampMult = 1 + (a.DMGAMP || 0) / 100
     const addMult = 1 + (a.DMGADD || 0) / 100
     const skillMult = 1 + (a.SKILLDMG || 0) / 100
     const autoDPS = (a.DPS || 0.0001) * ampMult * addMult
-
-    // skills: fold their burst into an effective DPS, limited by MP + cooldowns
-    const defs = ownedSkillDefs(s.skills)
-    const baseDeadTime = mHP / autoDPS
-    const sim = simulateSkillDamage(defs, a.ATK.value, s.mp, s.mpRegen, baseDeadTime)
-    const mpSpent = sim.mpSpent
-    const skillDmg = sim.dmg * skillMult * ampMult * addMult
-    const dps = autoDPS + skillDmg / Math.max(0.1, baseDeadTime)
-
-    const playerDeadTime = (a.CURHP.value + bloc) / reduc / mATK
-    const monsterDeadTime = mHP / dps
-    // settle MP: spent on casts, refunded by regen over the (shorter) real fight
-    if (defs.length) setMp(s.mp + s.mpRegen * monsterDeadTime - mpSpent)
-
-    if (monsterDeadTime < playerDeadTime) {
-      let dmg = -monsterDeadTime * mATK
-      dmg = Math.trunc(dmg * reduc) // truncate toward zero (matches Vue parseInt on a negative)
-      dmg = dmg + bloc
-      dmg = dmg > -1 ? -1 : dmg
-      setCurhp(dmg)
-      return { win: true, dmg: Math.abs(dmg), skillDmg }
-    } else {
-      setCurhp('dead')
-      let dmg = monsterDeadTime * mATK
-      dmg = Math.trunc(dmg * reduc)
-      dmg = dmg - bloc
-      dmg = dmg < 1 ? 1 : dmg
-      return { win: false, dmg, skillDmg }
-    }
+    const heroAtkMs = Math.max(250, 900 + rA.BATTLESPEED)
+    const heroHit = Math.max(1, Math.floor((autoDPS * heroAtkMs * COMBAT_SPEED) / 1000))
+    const enemyHit = (reduc * mATK * ENEMY_ATK_MS * COMBAT_SPEED) / 1000
+    const skills = ownedSkillDefs(get().skills).map((d) => ({
+      id: d.id,
+      cooldownMs: (d.cooldown * 1000) / COMBAT_SPEED, // 与加速后的战斗保持同步释放
+      mpCost: d.mpCost,
+      dmg: Math.max(1, Math.floor(d.multiplier * a.ATK.value * skillMult * ampMult * addMult)),
+    }))
+    return { heroAtkMs, heroHit, enemyHit, skills }
   }
 
   const onDungeonClear = () => {
@@ -383,6 +422,10 @@ export const useGame = create<GameState>((set, get) => {
       pushLog({ type: 'win', msg: '挑战成功，可以挑战下一层了！' })
       set({ endlessLv: Math.max(1, s.endlessLv + 1) })
       setCurhp('full')
+    } else if (dungeon.type === 'abyss') {
+      pushLog({ type: 'win', msg: '深渊层探索成功！可以挑战更深一层了。' })
+      set({ abyssLv: Math.max(1, s.abyssLv + 1) })
+      setCurhp('full')
     } else {
       pushLog({ type: 'win', msg: '副本探索成功！' })
       if (dungeon.lv >= 10 && !s.endlessLv) {
@@ -391,10 +434,10 @@ export const useGame = create<GameState>((set, get) => {
       }
     }
 
-    // decide auto-repeat
+    // 决定是否自动重复挑战
     const st = get()
     const backpackFull = st.backpack.filter(Boolean).length / st.backpack.length >= 0.8
-    if (dungeon.type !== 'endless' && st.reChallenge && !backpackFull) {
+    if (dungeon.type !== 'endless' && dungeon.type !== 'abyss' && st.reChallenge && !backpackFull) {
       set({ battle: null })
       get().beginBattle()
     } else if (dungeon.type === 'endless' && st.reEChallenge) {
@@ -402,6 +445,21 @@ export const useGame = create<GameState>((set, get) => {
       get().beginBattle()
     } else if (dungeon.type === 'endless' && st.upEChallenge) {
       const nextD = createEndlessDungeon(st.endlessLv)
+      set({ selectedDungeon: nextD, battle: null })
+      get().beginBattle()
+    } else if (dungeon.type === 'abyss' && st.reAChallenge) {
+      // 重复挑战：刷刚通关的那一层 —— 始终撤销通关时的 +1（即使
+      // 背包已满并停止时也是如此），否则层数会悄悄往上爬。
+      const layer = Math.max(1, st.abyssLv - 1)
+      if (backpackFull) {
+        pushLog({ type: 'warning', msg: '背包将满，深渊重复挑战暂停。' })
+        set({ abyssLv: layer, battle: null, selectedDungeon: null })
+      } else {
+        set({ abyssLv: layer, selectedDungeon: createAbyssDungeon(abyssTierByKey(st.abyssTier), layer), battle: null })
+        get().beginBattle()
+      }
+    } else if (dungeon.type === 'abyss' && st.upAChallenge && !backpackFull) {
+      const nextD = createAbyssDungeon(abyssTierByKey(st.abyssTier), st.abyssLv)
       set({ selectedDungeon: nextD, battle: null })
       get().beginBattle()
     } else {
@@ -417,6 +475,7 @@ export const useGame = create<GameState>((set, get) => {
     const now = Date.now()
     const rA = s.reincarnationAttribute
 
+    // ---- 在事件之间移动 ----
     if (b.phase === 'move') {
       const moveInterval = Math.max(15, 50 + rA.MOVESPEED)
       const step = MOVE_STEP_BASE * (50 / moveInterval)
@@ -425,51 +484,119 @@ export const useGame = create<GameState>((set, get) => {
       if (left >= threshold) {
         left = threshold
         const event = b.dungeon.eventType[b.nextEvent - 1]
-        pushLog({ type: 'battle', msg: `遭遇 ${event.name}（Lv${b.dungeon.lv}），战斗中…` })
-        const outcome = resolveEvent(event)
-        if (!outcome.win) {
-          // defeat
-          stopTimer()
-          pushLog({ type: 'warning', msg: `战斗失败！受到了 ${outcome.dmg} 点伤害。` })
-          pushLog({ type: 'warning', msg: '试试强化或重铸装备之后再来挑战吧。' })
-          set({ battle: null, selectedDungeon: null })
-          return
-        }
-        // win this event
-        if (outcome.skillDmg > 0) {
-          pushLog({ type: 'battle', msg: `技能造成 ${Math.round(outcome.skillDmg).toLocaleString()} 点额外伤害！` })
-        }
-        // kills award only 灵石 + equipment (via awardTrophy); EXP comes from the
-        // passive trickle and 灵石→经验 conversion, not from kills.
-        awardTrophy(b.dungeon, event)
-        // hard/extreme dungeons are single-attempt — remove from the map once a fight is won
-        // (matches the Vue source: removal happens on win, so a defeat keeps the dungeon for a retry)
-        if (b.dungeon.type !== 'endless' && b.dungeon.difficulty !== 1) {
-          set({ dungeons: get().dungeons.filter((d) => d.id !== b.dungeon.id) })
-        }
-        const pauseMs = Math.max(250, 900 + rA.BATTLESPEED)
-        set({
-          battle: {
-            ...get().battle!,
-            left,
-            phase: 'fight',
-            fightUntil: now + pauseMs,
-            lastResult: { win: true, name: event.name, dmg: outcome.dmg },
-          },
-        })
+        pushLog({ type: 'battle', msg: `遭遇 ${event.name}（Lv${event.lv}），战斗中…` })
+        set({ battle: { ...b, left, phase: 'fight', fightUntil: 0, lastResult: null, fight: initFight(event, now) } })
       } else {
         set({ battle: { ...b, left } })
       }
-    } else {
-      // fight pause
+      return
+    }
+
+    // ---- 实时对决 ----
+    const f = b.fight
+    if (!f) {
+      set({ battle: { ...b, phase: 'move' } })
+      return
+    }
+
+    // 胜利后停顿：敌人已死亡，先保持画面再推进
+    if (f.enemyHp <= 0) {
       if (now >= b.fightUntil) {
         const nextEvent = b.nextEvent + 1
-        if (nextEvent > b.dungeon.eventNum) {
-          onDungeonClear()
-        } else {
-          set({ battle: { ...b, nextEvent, phase: 'move' } })
+        if (nextEvent > b.dungeon.eventNum) onDungeonClear()
+        else set({ battle: { ...b, nextEvent, phase: 'move', fight: null } })
+      }
+      return
+    }
+
+    const event = b.dungeon.eventType[b.nextEvent - 1]
+    const prof = combatProfile(event)
+    let enemyHp = f.enemyHp
+    let blocLeft = f.blocLeft
+    let dmgTaken = f.dmgTaken
+    let nextHeroHit = f.nextHeroHit
+    let nextEnemyHit = f.nextEnemyHit
+    let skillReady = f.skillReady
+    let heroFx = f.heroFx
+    let enemyFx = f.enemyFx
+
+    // 英雄自动攻击
+    if (now >= nextHeroHit) {
+      enemyHp -= prof.heroHit
+      heroFx = { dmg: prof.heroHit, id: ++fxSeq }
+      nextHeroHit = now + prof.heroAtkMs
+    }
+    // 英雄技能 —— 每个 tick 释放一个已就绪且法力足够的技能，使节奏易于观察
+    if (enemyHp > 0) {
+      for (const sk of prof.skills) {
+        if (now >= (skillReady[sk.id] ?? 0) && get().mp >= sk.mpCost) {
+          enemyHp -= sk.dmg
+          setMp(get().mp - sk.mpCost)
+          skillReady = { ...skillReady, [sk.id]: now + sk.cooldownMs }
+          heroFx = { dmg: sk.dmg, skill: sk.id, id: ++fxSeq }
+          break
         }
       }
+    }
+    // 敌人攻击 —— 先消耗一次性格挡缓冲
+    if (enemyHp > 0 && now >= nextEnemyHit) {
+      let raw = prof.enemyHit
+      if (blocLeft > 0) {
+        const absorbed = Math.min(blocLeft, raw)
+        raw -= absorbed
+        blocLeft -= absorbed
+      }
+      const dmg = Math.max(1, Math.floor(raw))
+      setCurhp(-dmg)
+      dmgTaken += dmg
+      enemyFx = { dmg, id: ++fxSeq }
+      nextEnemyHit = now + ENEMY_ATK_MS
+    }
+
+    const heroHp = get().attribute.CURHP.value
+
+    const winFight = () => {
+      // 击杀奖励 灵石 + 装备（通过 awardTrophy）；EXP 来自被动
+      // 涓流以及 灵石→经验 转换，而非击杀。
+      awardTrophy(b.dungeon, event)
+      // 困难/极难副本仅可挑战一次 —— 首次获胜后从地图上移除
+      if (b.dungeon.type !== 'endless' && b.dungeon.type !== 'abyss' && b.dungeon.difficulty !== 1) {
+        set({ dungeons: get().dungeons.filter((d) => d.id !== b.dungeon.id) })
+      }
+      const pauseMs = Math.max(250, 900 + rA.BATTLESPEED)
+      set({
+        battle: {
+          ...get().battle!,
+          fightUntil: now + pauseMs,
+          lastResult: { win: true, name: event.name, dmg: dmgTaken },
+          fight: { ...f, enemyHp: 0, blocLeft, dmgTaken, nextHeroHit, nextEnemyHit, skillReady, heroFx, enemyFx },
+        },
+      })
+    }
+
+    if (enemyHp <= 0) {
+      winFight()
+    } else if (heroHp <= 1) {
+      stopTimer()
+      pushLog({ type: 'warning', msg: `战斗失败！本场受到了 ${dmgTaken} 点伤害。` })
+      pushLog({ type: 'warning', msg: '试试强化或重铸装备之后再来挑战吧。' })
+      set({ battle: null, selectedDungeon: null })
+    } else if (now - f.fightStart > MAX_FIGHT_MS) {
+      // 僵局保护：仅在接近击杀时计为获胜，否则无奖励撤退
+      if (enemyHp <= f.enemyMaxHp * 0.2) {
+        winFight()
+      } else {
+        stopTimer()
+        pushLog({ type: 'warning', msg: '战斗超时，撤退了。' })
+        set({ battle: null, selectedDungeon: null })
+      }
+    } else {
+      set({
+        battle: {
+          ...b,
+          fight: { ...f, enemyHp, blocLeft, dmgTaken, nextHeroHit, nextEnemyHit, skillReady, heroFx, enemyFx },
+        },
+      })
     }
   }
 
@@ -491,6 +618,8 @@ export const useGame = create<GameState>((set, get) => {
     exp: 0,
     gold: 0,
     endlessLv: 0,
+    abyssLv: 1,
+    abyssTier: 't1',
     reincarnation: { count: 0, point: 0 },
     reincarnationAttribute: { ...EMPTY_REINCARNATION_ATTR },
     equipment: freshEquipment(),
@@ -519,6 +648,8 @@ export const useGame = create<GameState>((set, get) => {
     reChallenge: false,
     upEChallenge: false,
     reEChallenge: false,
+    upAChallenge: false,
+    reAChallenge: false,
 
     battle: null,
     sysInfo: [
@@ -529,7 +660,7 @@ export const useGame = create<GameState>((set, get) => {
     strengthenTarget: null,
     strengthenIndex: -1,
 
-    // ---- actions ----
+    // ---- 操作 ----
     setHero: (id) => {
       set({ heroId: id })
       get().saveGame(false)
@@ -594,7 +725,7 @@ export const useGame = create<GameState>((set, get) => {
       const mpRegen = mpRegenFor(maxMp)
       const defs = ownedSkillDefs(s.skills)
       const skillDPS = skillDpsDisplay(defs, attribute.ATK.value, mpRegen)
-      // apply 黄字/白字/技能伤害 multipliers to get the real total DPS
+      // 应用 黄字/白字/技能伤害 倍率以得到真实的总 DPS
       const ampMult = 1 + attribute.DMGAMP / 100
       const addMult = 1 + attribute.DMGADD / 100
       const skillMult = 1 + attribute.SKILLDMG / 100
@@ -604,14 +735,16 @@ export const useGame = create<GameState>((set, get) => {
 
     regenTick: () => {
       const s = get()
+      // 战斗进行中不回复 HP —— 只在战斗之间回复。
+      const inFight = !!(s.battle && s.battle.phase === 'fight' && s.battle.fight && s.battle.fight.enemyHp > 0)
       const heal = s.healthRecoverySpeed * (s.attribute.MAXHP.value / 50)
-      if (s.attribute.CURHP.value < s.attribute.MAXHP.value) setCurhp(heal)
+      if (!inFight && s.attribute.CURHP.value < s.attribute.MAXHP.value) setCurhp(heal)
       if (s.mp < s.maxMp) setMp(s.mp + s.mpRegen)
     },
 
     tickSecond: () => {
       const s = get()
-      // passive EXP trickle, scaling with level
+      // 被动 EXP 涓流，随等级缩放
       get().gainExp(autoExpPerSec(s.lv))
       const patch: Partial<GameState> = {}
       if (s.dungeonCd > 0) patch.dungeonCd = s.dungeonCd - 1
@@ -638,7 +771,7 @@ export const useGame = create<GameState>((set, get) => {
       }
       const slot = item.itemType
       const backpack = [...s.backpack]
-      backpack[backpackIndex] = s.equipment[slot] // swap the old gear into the bag
+      backpack[backpackIndex] = s.equipment[slot] // 把旧装备换回背包
       const equipment: Equipment = { ...s.equipment, [slot]: item }
       set({ equipment, backpack })
       get().recompute()
@@ -707,7 +840,7 @@ export const useGame = create<GameState>((set, get) => {
         for (let i = 0; i < backpack.length; i++) {
           const it = backpack[i]
           if (it && it.itemType === slot && it.lv > playerLv) {
-            if (itemScore(it) > bestScore) blocked++ // a better item exists but is over-level
+            if (itemScore(it) > bestScore) blocked++ // 存在更强的装备但等级不足
             continue
           }
           if (it && it.itemType === slot) {
@@ -720,7 +853,7 @@ export const useGame = create<GameState>((set, get) => {
         }
         if (bestIdx >= 0) {
           const picked = backpack[bestIdx]!
-          backpack[bestIdx] = equipment[slot] // old gear back into the bag
+          backpack[bestIdx] = equipment[slot] // 旧装备放回背包
           equipment[slot] = picked
           changed++
         }
@@ -781,7 +914,7 @@ export const useGame = create<GameState>((set, get) => {
       }
     },
 
-    // Stock the shop for free if it's currently empty (initial stock on game start).
+    // 若商店当前为空则免费补货（游戏开始时的初始补货）。
     restockShop: () => {
       if (get().shop.some(Boolean)) return
       set({ shop: buildShop(get().lv) })
@@ -821,6 +954,20 @@ export const useGame = create<GameState>((set, get) => {
       set({ selectedDungeon: createEndlessDungeon(s.endlessLv || 1), reChallenge: false })
     },
 
+    selectAbyss: () => {
+      const s = get()
+      set({ selectedDungeon: createAbyssDungeon(abyssTierByKey(s.abyssTier), s.abyssLv || 1), reChallenge: false })
+    },
+
+    setAbyssTier: (key) => {
+      const s = get()
+      const refresh = s.selectedDungeon?.type === 'abyss'
+      set({
+        abyssTier: key,
+        ...(refresh ? { selectedDungeon: createAbyssDungeon(abyssTierByKey(key), s.abyssLv || 1) } : {}),
+      })
+    },
+
     closeDungeon: () => set({ selectedDungeon: null }),
 
     resetEndlessLv: () => {
@@ -828,9 +975,17 @@ export const useGame = create<GameState>((set, get) => {
       pushLog({ type: 'win', msg: '无尽挑战层数已重置到第 1 层。' })
     },
 
+    resetAbyssLv: () => {
+      const s = get()
+      set({ abyssLv: 1, selectedDungeon: s.selectedDungeon?.type === 'abyss' ? createAbyssDungeon(abyssTierByKey(s.abyssTier), 1) : s.selectedDungeon })
+      pushLog({ type: 'win', msg: '深渊层数已重置到第 1 层。' })
+    },
+
     setChallengeFlag: (key, v) => {
       if (key === 'upEChallenge') set({ upEChallenge: v, reEChallenge: !v })
       else if (key === 'reEChallenge') set({ reEChallenge: v, upEChallenge: !v })
+      else if (key === 'upAChallenge') set({ upAChallenge: v, reAChallenge: !v })
+      else if (key === 'reAChallenge') set({ reAChallenge: v, upAChallenge: !v })
       else set({ reChallenge: v })
     },
 
@@ -838,9 +993,20 @@ export const useGame = create<GameState>((set, get) => {
       const s = get()
       const dungeon = s.selectedDungeon
       if (!dungeon) return
-      pushLog({ type: 'warning', msg: `进入 ${dungeon.type === 'endless' ? `无尽（第${dungeon.lv}层）` : dungeon.name}` })
+      // 深渊 进入需消耗灵石：副本级别 × 角色等级 × 深渊层级
+      if (dungeon.type === 'abyss') {
+        const cost = abyssEntryCost(abyssTierByKey(s.abyssTier), s.lv, s.abyssLv)
+        if (s.gold < cost) {
+          pushLog({ type: 'warning', msg: `进入深渊需要 ${cost} 灵石，灵石不足。` })
+          return
+        }
+        set({ gold: s.gold - cost })
+        pushLog({ type: 'warning', msg: `支付 ${cost} 灵石，进入 ${dungeon.name}` })
+      } else {
+        pushLog({ type: 'warning', msg: `进入 ${dungeon.type === 'endless' ? `无尽（第${dungeon.lv}层）` : dungeon.name}` })
+      }
       set({
-        battle: { dungeon, left: 0, nextEvent: 1, phase: 'move', fightUntil: 0, lastResult: null },
+        battle: { dungeon, left: 0, nextEvent: 1, phase: 'move', fightUntil: 0, lastResult: null, fight: null },
       })
       startTimer()
     },
@@ -877,8 +1043,8 @@ export const useGame = create<GameState>((set, get) => {
       return 'ok'
     },
 
-    // Keep attempting enhancement (with its success/failure/downgrade rolls) until the
-    // item reaches the target level, or 灵石 runs out — all in one synchronous burst.
+    // 反复尝试强化（含成功/失败/降级的判定），直到
+    // 装备达到目标等级，或 灵石 耗尽 —— 全部在一次同步的批量执行中完成。
     autoStrengthen: (targetLv) => {
       const s = get()
       const start = s.strengthenTarget
@@ -928,7 +1094,7 @@ export const useGame = create<GameState>((set, get) => {
       return 'ok'
     },
 
-    // Keep random-reforging one affix until it becomes the target type (or 灵石 runs out).
+    // 反复随机重铸某个词条，直到它变为目标类型（或 灵石 耗尽）。
     autoReforge: (entryIndex, targetType) => {
       const s = get()
       const item = s.strengthenTarget
@@ -995,7 +1161,7 @@ export const useGame = create<GameState>((set, get) => {
       set({ strengthenTarget: updated })
     },
 
-    // 品质洗礼: reroll the quality of every UNLOCKED affix (extra + innate) at once.
+    // 品质洗礼：一次性重掷所有未锁定词条（额外 + 固有）的品质。
     baptize: () => {
       const s = get()
       const item = s.strengthenTarget
@@ -1062,8 +1228,8 @@ export const useGame = create<GameState>((set, get) => {
 
     doReincarnate: (gainedPoint) => {
       const s = get()
-      // Randomly spread the gained points across every attribute (on top of what
-      // previous reincarnations already accumulated).
+      // 将获得的点数随机分散到每个属性上（在之前
+      // 转生已累积的基础之上）。
       const { attribute, added } = randomAllocateReincarnation(s.reincarnationAttribute, gainedPoint)
       set({
         gold: 0,
@@ -1099,6 +1265,8 @@ export const useGame = create<GameState>((set, get) => {
         exp: s.exp,
         gold: s.gold,
         endlessLv: s.endlessLv,
+        abyssLv: s.abyssLv,
+        abyssTier: s.abyssTier,
         reincarnation: s.reincarnation,
         reincarnationAttribute: s.reincarnationAttribute,
         equipment: s.equipment,
@@ -1127,6 +1295,8 @@ export const useGame = create<GameState>((set, get) => {
           exp: d.exp ?? 0,
           gold: d.gold ?? 0,
           endlessLv: d.endlessLv ?? 0,
+          abyssLv: d.abyssLv ?? 1,
+          abyssTier: d.abyssTier ?? 't1',
           reincarnation: d.reincarnation ?? { count: 0, point: 0 },
           reincarnationAttribute: d.reincarnationAttribute ?? { ...EMPTY_REINCARNATION_ATTR },
           equipment: d.equipment ?? freshEquipment(),
@@ -1161,6 +1331,8 @@ export const useGame = create<GameState>((set, get) => {
         exp: 0,
         gold: 0,
         endlessLv: 0,
+        abyssLv: 1,
+        abyssTier: 't1',
         reincarnation: { count: 0, point: 0 },
         reincarnationAttribute: { ...EMPTY_REINCARNATION_ATTR },
         equipment: freshEquipment(),
@@ -1189,7 +1361,7 @@ function normalizeBackpack(bp: unknown): (Item | null)[] {
     for (let i = 0; i < Math.min(bp.length, BACKPACK_SIZE); i++) {
       const it = bp[i]
       out[i] = it && typeof it === 'object' && (it as Item).lv ? (it as Item) : null
-      // ensure a stable id exists on legacy items
+      // 确保旧版物品上存在稳定的 id
       if (out[i] && !(out[i] as Item).id) (out[i] as Item).id = uid()
     }
   }

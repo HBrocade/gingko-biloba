@@ -1,8 +1,8 @@
-// Reincarnation (转生) attribute config + random point allocation.
-// Shared by the store (auto-distributes gained points on reincarnate) and the
-// panel (displays the accumulated allocation). Each attribute maps a whole number
-// of "points" to a stored ReincarnationAttribute value via toRA/toPoints; some
-// attributes have a point cap (max).
+// 转生属性配置 + 随机点数分配。
+// 由 store（转生时自动分配获得的点数）与
+// 面板（展示累计分配）共享。每个属性通过 toRA/toPoints 将整数
+// “点数”映射为存储的 ReincarnationAttribute 值；部分
+// 属性有点数上限（max）。
 
 import type { ReincarnationAttribute } from './types'
 
@@ -11,13 +11,13 @@ export interface ReinAttrCfg {
   name: string
   icon: string
   unit: string
-  /** point cap (null = uncapped) */
+  /** 点数上限（null = 不限） */
   max: number | null
-  /** points -> stored rA value */
+  /** 点数 -> 存储的 rA 值 */
   toRA: (p: number) => number
-  /** stored rA value -> points */
+  /** 存储的 rA 值 -> 点数 */
   toPoints: (v: number) => number
-  /** display bonus text for p points */
+  /** p 点对应的加成显示文本 */
   display: (p: number) => string
 }
 
@@ -32,7 +32,7 @@ export const REIN_ATTRS: ReinAttrCfg[] = [
   { key: 'BATTLESPEED', name: '战斗速度', icon: '⚡', unit: 'X', max: 500, toRA: (p) => -(p * 3), toPoints: (v) => Math.round(-v / 3), display: (p) => `+${(p * 0.01).toFixed(2)}X` },
 ]
 
-/** Current allocated points per attribute, derived from stored RA values. */
+/** 各属性当前已分配的点数，由存储的 RA 值推导得出。 */
 export function reinPointsOf(rA: ReincarnationAttribute): Record<keyof ReincarnationAttribute, number> {
   const out = {} as Record<keyof ReincarnationAttribute, number>
   for (const a of REIN_ATTRS) out[a.key] = Math.max(0, Math.round(a.toPoints(rA[a.key])))
@@ -40,10 +40,10 @@ export function reinPointsOf(rA: ReincarnationAttribute): Record<keyof Reincarna
 }
 
 /**
- * Randomly spread `gain` points across the attributes (respecting each attribute's
- * point cap), added on top of the current allocation. Returns the resulting RA and
- * a per-attribute breakdown of how many points this call added. Points that cannot
- * be placed (every attribute capped) are discarded.
+ * 将 `gain` 点随机分配到各属性上（遵守每个属性的
+ * 点数上限），叠加在当前分配之上。返回最终的 RA 以及
+ * 本次调用为每个属性新增点数的明细。无法放置的点数
+ *（所有属性均已达上限）将被丢弃。
  */
 export function randomAllocateReincarnation(
   rA: ReincarnationAttribute,

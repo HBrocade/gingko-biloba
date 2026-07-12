@@ -1,4 +1,4 @@
-// Unicode-safe base64 (the game text is Chinese, so btoa alone won't work).
+// Unicode 安全的 base64（游戏文本是中文，仅靠 btoa 无法正常处理）。
 export function b64encode(str: string): string {
   const bytes = new TextEncoder().encode(str)
   let bin = ''
