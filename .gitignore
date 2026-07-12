@@ -12,3 +12,6 @@ dist-ssr
 _*.ts
 _*.mjs
 .DS_Store
+
+# build cache
+tsconfig.tsbuildinfo
