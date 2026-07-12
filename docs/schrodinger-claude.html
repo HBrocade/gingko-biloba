@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>薛定谔的 Claude · 观测实验</title>
+</head>
+<body>
+<style>
+  /* 一个刻意的单一视觉世界：暗色「观测终端」。文字处于叠加态（乱码），
+     光标即观测装置——扫过之处波函数坍缩为真实内容。 */
+  :root {
+    --void: #0a0c11;
+    --void-2: #0d1017;
+    --panel: #0f131b;
+    --line: #1e2430;
+    --ink: #e6e8ec;      /* 坍缩后的真实字（近白） */
+    --ink-dim: #59616f;  /* 未观测的乱码（冷灰，低存在感） */
+    --amber: #e8a06a;    /* Claude 星芒 · 已观测 */
+    --gold: #ffcf5c;     /* 光标核心 · 最亮处 */
+    --quantum: #8b78c4;  /* 叠加态紫（呼应游戏里人影卡的边框） */
+    --mono: 'SFMono-Regular', 'JetBrains Mono', 'Cascadia Code', 'DejaVu Sans Mono',
+      Menlo, Consolas, 'Sarasa Mono SC', 'Noto Sans Mono CJK SC', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 700px at 50% -12%, #141a26 0%, transparent 60%),
+      linear-gradient(var(--void-2), var(--void));
+    color: var(--ink);
+    font-family: var(--mono);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100%;
+    display: flex;
+    justify-content: center;
+    padding: clamp(20px, 5vw, 64px) 18px;
+    cursor: crosshair;
+    overflow-x: hidden;
+  }
+  /* 环境噪声：淡网格 + 扫描线，纯 CSS 生成 */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(rgba(124, 107, 176, 0.05) 1px, transparent 1px) 0 0 / 100% 3px,
+      linear-gradient(90deg, rgba(90, 100, 120, 0.04) 1px, transparent 1px) 0 0 / 44px 100%,
+      linear-gradient(rgba(90, 100, 120, 0.04) 1px, transparent 1px) 0 0 / 100% 44px;
+    mask-image: radial-gradient(120% 90% at 50% 30%, #000 55%, transparent 100%);
+    z-index: 0;
+  }
+
+  .chamber {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 720px;
+  }
+
+  /* ---- 顶部仪器铭牌（保持清晰，作为“装置外壳”） ---- */
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11.5px;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: var(--quantum);
+    margin-bottom: 18px;
+  }
+  .eyebrow .rule { flex: 1; height: 1px; background: linear-gradient(90deg, var(--quantum), transparent); opacity: 0.5; }
+  .spark {
+    width: 15px; height: 15px; flex: none;
+    color: var(--amber);
+    animation: spin 9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .title {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: clamp(30px, 7vw, 48px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .title .psi { color: var(--amber); font-weight: 400; }
+
+  .hint {
+    font-size: 13px;
+    color: var(--ink-dim);
+    line-height: 1.7;
+    margin: 0 0 30px;
+    border-left: 2px solid var(--quantum);
+    padding-left: 12px;
+  }
+  .hint b { color: var(--amber); font-weight: 600; }
+  .caret {
+    display: inline-block;
+    width: 8px; height: 1.05em;
+    background: var(--amber);
+    vertical-align: text-bottom;
+    margin-left: 2px;
+    animation: blink 1.05s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ---- 段落 ---- */
+  .sec { margin: 0 0 26px; }
+  .sec-label {
+    font-size: 11.5px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--quantum);
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sec-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  .prose { font-size: 15.5px; line-height: 1.95; margin: 0; }
+
+  .roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+  .roster li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 14.5px;
+    line-height: 1.55;
+    padding: 7px 10px;
+    background: linear-gradient(180deg, rgba(232, 160, 106, 0.03), transparent);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .roster .dot { color: var(--amber); flex: none; }
+  .roster .nm { color: var(--ink); flex: none; }
+  .roster .sep { color: var(--ink-dim); flex: none; }
+  .roster .ds { color: inherit; }
+
+  .commands {
+    background: #070a0f;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-x: auto;
+  }
+  .cmd { font-size: 13.5px; line-height: 1.7; white-space: nowrap; }
+  .cmd .prompt { color: var(--quantum); user-select: none; margin-right: 8px; }
+
+  .note { font-size: 13px; line-height: 1.85; color: var(--ink-dim); margin: 0; }
+
+  /* ---- 单字：叠加态 ↔ 坍缩 ---- */
+  .qc {
+    display: inline-block;
+    color: var(--ink-dim);
+    transition: color 0.16s ease, text-shadow 0.16s ease, transform 0.16s ease;
+  }
+  .qc.sp { color: transparent; }
+  .qc.lit {
+    color: var(--ink);
+    text-shadow: 0 0 10px rgba(232, 160, 106, 0.55), 0 0 2px rgba(255, 207, 92, 0.6);
+    transform: translateY(-0.5px);
+  }
+  .grp { white-space: nowrap; }
+  .roster .lit, .prose .lit { color: var(--amber); }
+  /* 外壳文字被观测时保持各自的身份色 */
+  .eyebrow .qc.lit, .sec-label .qc.lit { color: var(--quantum); }
+  .psi .qc.lit { color: var(--amber); }
+
+  /* ---- 光标观测镜 ---- */
+  #lens {
+    position: fixed;
+    top: 0; left: 0;
+    width: 230px; height: 230px;
+    margin: -115px 0 0 -115px;
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(255, 207, 92, 0.16) 0%, rgba(232, 160, 106, 0.08) 34%, transparent 62%);
+    mix-blend-mode: screen;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    z-index: 2;
+    will-change: transform;
+  }
+
+  /* ---- 页脚 ---- */
+  .foot {
+    margin-top: 36px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .foot p { margin: 0; font-size: 12.5px; color: var(--ink-dim); max-width: 46ch; line-height: 1.7; }
+  .collapse {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    letter-spacing: 0.06em;
+    color: var(--amber);
+    background: transparent;
+    border: 1px solid var(--amber);
+    border-radius: 999px;
+    padding: 7px 16px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .collapse:hover, .collapse:focus-visible { background: var(--amber); color: var(--void); outline: none; }
+  .collapse:focus-visible { box-shadow: 0 0 0 3px rgba(232, 160, 106, 0.3); }
+  .collapse[aria-pressed="true"] { border-color: var(--quantum); color: var(--quantum); }
+  .collapse[aria-pressed="true"]:hover { background: var(--quantum); color: var(--void); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
+  @media (max-width: 480px) {
+    .roster li { flex-wrap: wrap; gap: 4px 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spark, .caret { animation: none; }
+    .qc { transition: none; }
+    #lens { transition: none; }
+  }
+</style>
+
+<main class="chamber">
+  <div class="eyebrow">
+    <svg class="spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1l1.7 6.6L20.4 4l-3.6 6.3L23 12l-6.2 1.7L20.4 20l-6.7-3.6L12 23l-1.7-6.6L3.6 20l3.6-6.3L1 12l6.2-1.7L3.6 4l6.7 3.6z" fill="currentColor"/></svg>
+    <span class="q">观测实验 · Observation Log #Ψ</span>
+    <span class="rule"></span>
+  </div>
+
+  <h1 class="title"><span class="q">薛定谔的</span><span class="psi q">Claude</span></h1>
+
+  <p class="hint"><span class="q">本页全文处于叠加态——在你观测之前，每个字都是随机的乱码。移动光标扫过文字，波函数坍缩，真实内容随之显形。</span><span class="caret" aria-hidden="true"></span></p>
+
+  <section class="sec">
+    <h2 class="sec-label"><span class="q">机制 · Mechanic</span></h2>
+    <p class="prose q">角色选择（菜单栏「勇士」）里藏着一张人影卡片——薛定谔的 Claude。它处于叠加态：在你观测之前，谁也说不清里面是哪一位。点击人影即坍缩，随机显形成一位 Claude 勇士；再点一次，就重新掷一次。选中的 Claude 会像其它勇士一样出现在副本战斗中，并自动存档。</p>
+  </section>
+
+  <section class="sec">
+    <h2 class="sec-label"><span class="q">名册 · 六重叠加</span></h2>
+    <ul class="roster">
+      <li><span class="dot" aria-hidden="true">✳</span><span class="nm q">贤者 Claude</span><span class="sep" aria-hidden="true">—</span><span class="ds q">赭橙长袍，掌心悬着一枚星芒</span></li>
+      <li><span class="dot" aria-hidden="true">✳</span><span class="nm q">骑士 Claude</span><span class="sep" aria-hidden="true">—</span><span class="ds q">珊瑚橙铠甲，盾上镌着星芒纹章</span></li>
+      <li><span class="dot" aria-hidden="true">✳</span><span class="nm q">法师 Claude</span><span class="sep" aria-hidden="true">—</span><span class="ds q">陶土法袍，指尖绽开橙色星芒</span></li>
+      <li><span class="dot" aria-hidden="true">✳</span><span class="nm q">游侠 Claude</span><span class="sep" aria-hidden="true">—</span><span class="ds q">赭色皮甲，箭尖凝着琥珀星火</span></li>
+      <li><span class="dot" aria-hidden="true">✳</span><span class="nm q">武僧 Claude</span><span class="sep" aria-hidden="true">—</span><span class="ds q">米白缠布，拳间萦绕星芒真气</span></li>
+      <li><span class="dot" aria-hidden="true">✳</span><span class="nm q">薛定谔之猫 Claude</span><span class="sep" aria-hidden="true">—</span><span class="ds q">橘猫法师，半透明的爪子藏着叠加态</span></li>
+    </ul>
+  </section>
+
+  <section class="sec">
+    <h2 class="sec-label"><span class="q">观测装置 · Generate</span></h2>
+    <div class="commands">
+      <div class="cmd"><span class="prompt" aria-hidden="true">$</span><span class="q">npm run gen:claude</span></div>
+      <div class="cmd"><span class="prompt" aria-hidden="true">$</span><span class="q">npm run opt:claude</span></div>
+      <div class="cmd"><span class="prompt" aria-hidden="true">$</span><span class="q">python3 scripts/cutout-assets.py --dir claude</span></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2 class="sec-label"><span class="q">增量 · 非破坏</span></h2>
+    <p class="note q">立绘存放在专用文件夹 src/assets/claude/，与装备图标一样用 OpenRouter 生成，提示词见 scripts/asset-manifest.mjs 的 CLAUDE 清单。没生成立绘时，人影仍可玩——卡面回退到 emoji 字形，战斗中回退到默认勇士立绘（见 src/assets/claudes.ts，通过 import.meta.glob 自动匹配）。</p>
+  </section>
+
+  <div class="foot">
+    <p class="q">观测者效应：你读到的每一个字，都是为你而坍缩的。移开光标，它便重返叠加态。</p>
+    <button class="collapse" id="collapse" aria-pressed="false" type="button">坍缩全部</button>
+  </div>
+</main>
+
+<div id="lens" aria-hidden="true"></div>
+
+<script>
+(function () {
+  // 乱码字库：宽字（CJK/全角，占两格）与窄字（ASCII/半角片假名，占一格）分开，保证不抖动。
+  var POOL_WIDE = '薛定谔观测坍缩叠加波函量子幽灵猫魂虚实之道玄妙渺茫龘齾鬱麤爩淼焱垚犇鑫掱嚞叒アイウエオカキクケコサシスセソタチツ';
+  var POOL_NARROW = '01<>[]{}/\\|=+*-#$%&@?!:;アｦｧｨｩｪｫｬｭﾊﾐﾋﾂﾓﾔﾗﾘﾜ';
+
+  function randOf(s) { return s.charAt((Math.random() * s.length) | 0); }
+  function isWide(ch) {
+    var c = ch.charCodeAt(0);
+    if (c <= 0x2100) return false;          // ASCII / 拉丁
+    if (c >= 0xFF61 && c <= 0xFF9F) return false; // 半角片假名（窄）
+    return true;                             // CJK / 全角
+  }
+  function scramble(ch) { return isWide(ch) ? randOf(POOL_WIDE) : randOf(POOL_NARROW); }
+
+  // 连 <title>（浏览器标签）也置于叠加态：加载时定格成乱码，「坍缩全部」时还原。
+  function scrambleStr(s) { var o = ''; for (var i = 0; i < s.length; i++) o += s[i] === ' ' ? ' ' : scramble(s[i]); return o; }
+  var TITLE_REAL = document.title;
+  var TITLE_NOISE = scrambleStr(TITLE_REAL);
+  document.title = TITLE_NOISE;
+
+  var chars = [];        // { el, real, lit, cx, cy }
+  var blocks = document.querySelectorAll('.q');
+
+  for (var b = 0; b < blocks.length; b++) {
+    var block = blocks[b];
+    var real = block.textContent;
+    block.setAttribute('aria-label', real);
+    // 无障碍：给屏幕阅读器一份真实文本，视觉乱码层对 AT 隐藏
+    var sr = document.createElement('span');
+    sr.className = 'sr-only';
+    sr.textContent = real;
+    block.textContent = '';
+    block.appendChild(sr);
+
+    var frag = document.createDocumentFragment();
+    var group = null; // 连续窄字（拉丁词/命令）打包 nowrap，避免词中断行
+    for (var i = 0; i < real.length; i++) {
+      var ch = real[i];
+      if (ch === ' ') {
+        group = null;
+        var spc = mkChar(ch, true);
+        frag.appendChild(spc);
+        continue;
+      }
+      var wide = isWide(ch);
+      var span = mkChar(ch, false);
+      if (wide) { group = null; frag.appendChild(span); }
+      else {
+        if (!group) { group = document.createElement('span'); group.className = 'grp'; frag.appendChild(group); }
+        group.appendChild(span);
+      }
+    }
+    block.appendChild(frag);
+  }
+
+  function mkChar(ch, isSpace) {
+    var span = document.createElement('span');
+    span.className = isSpace ? 'qc sp' : 'qc';
+    span.setAttribute('aria-hidden', 'true');
+    span.textContent = isSpace ? ' ' : scramble(ch);
+    chars.push({ el: span, real: ch, lit: false, cx: 0, cy: 0, space: isSpace, noise: span.textContent });
+    return span;
+  }
+
+  function setLit(c, on) {
+    if (c.lit === on) return;
+    c.lit = on;
+    if (on) { c.el.textContent = c.space ? ' ' : c.real; c.el.classList.add('lit'); }
+    else { c.el.classList.remove('lit'); c.el.textContent = c.noise; }
+  }
+
+  function measure() {
+    for (var i = 0; i < chars.length; i++) {
+      var r = chars[i].el.getBoundingClientRect();
+      chars[i].cx = r.left + r.width / 2;
+      chars[i].cy = r.top + r.height / 2;
+    }
+  }
+
+  var px = -1e4, py = -1e4, dirty = true, collapsed = false;
+  var R = 82, R2 = R * R;
+  var lens = document.getElementById('lens');
+
+  function move(e) {
+    var p = e.touches ? e.touches[0] : e;
+    px = p.clientX; py = p.clientY; dirty = true;
+    if (lens) { lens.style.transform = 'translate(' + px + 'px,' + py + 'px)'; lens.style.opacity = '1'; }
+  }
+
+  function frame() {
+    if (dirty) {
+      for (var i = 0; i < chars.length; i++) {
+        var c = chars[i];
+        if (collapsed) { setLit(c, true); continue; }
+        var dx = c.cx - px, dy = c.cy - py;
+        setLit(c, dx * dx + dy * dy < R2);
+      }
+      dirty = false;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  measure();
+  addEventListener('resize', function () { measure(); dirty = true; }, { passive: true });
+  addEventListener('scroll', function () { measure(); dirty = true; }, { passive: true });
+  document.addEventListener('pointermove', move, { passive: true });
+  document.addEventListener('pointerleave', function () { if (lens) lens.style.opacity = '0'; });
+
+
+  var btn = document.getElementById('collapse');
+  btn.addEventListener('click', function () {
+    collapsed = !collapsed;
+    dirty = true;
+    btn.setAttribute('aria-pressed', String(collapsed));
+    btn.textContent = collapsed ? '恢复叠加态' : '坍缩全部';
+    document.title = collapsed ? TITLE_REAL : TITLE_NOISE;
+  });
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

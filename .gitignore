@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-ssr
+*.local
+
+# secrets — never commit your API key
+.env
+.env.*
+!.env.example
+
+# temp / scratch
+_*.ts
+_*.mjs
+.DS_Store

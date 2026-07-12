@@ -1,0 +1,202 @@
+import { useState } from 'react'
+import { useGame } from './game/store'
+import { useGameLoop } from './hooks/useGameLoop'
+import { StatusPanel } from './ui/StatusPanel'
+import { EquipmentBar } from './ui/EquipmentBar'
+import { SystemLog } from './ui/SystemLog'
+import { MapPanel } from './ui/MapPanel'
+import { Backpack } from './ui/Backpack'
+import { Shop } from './ui/Shop'
+import { StrengthenPanel } from './ui/StrengthenPanel'
+import { ReincarnationPanel } from './ui/ReincarnationPanel'
+import { HeroPicker } from './ui/HeroPicker'
+import { SkillsPanel } from './ui/SkillsPanel'
+import { CharacterPanel } from './ui/CharacterPanel'
+import { Modal } from './ui/Modal'
+import { TooltipLayer } from './ui/TooltipLayer'
+
+type Panel = 'char' | 'backpack' | 'shop' | 'skills' | 'rein' | 'hero' | 'gm' | 'import' | 'export' | null
+
+const MENU: { key: Panel | 'refresh' | 'save'; icon: string; label: string }[] = [
+  { key: 'char', icon: '📋', label: '角色' },
+  { key: 'backpack', icon: '🎒', label: '背包' },
+  { key: 'shop', icon: '🏪', label: '商店' },
+  { key: 'skills', icon: '📖', label: '技能' },
+  { key: 'refresh', icon: '🔄', label: '刷新副本' },
+  { key: 'hero', icon: '🧙', label: '勇士' },
+  { key: 'rein', icon: '🌀', label: '转生' },
+  { key: 'save', icon: '💾', label: '保存' },
+  { key: 'export', icon: '📤', label: '导出' },
+  { key: 'import', icon: '📥', label: '导入' },
+  // GM 工具仅开发模式可见；生产构建中 import.meta.env.DEV 为 false，此项会被摇树移除。
+  ...(import.meta.env.DEV ? [{ key: 'gm' as Panel, icon: '🛠️', label: 'GM' }] : []),
+]
+
+function ImportExport({ mode, onClose }: { mode: 'import' | 'export'; onClose: () => void }) {
+  const exportSave = useGame((s) => s.exportSave)
+  const loadGame = useGame((s) => s.loadGame)
+  const [text, setText] = useState(mode === 'export' ? exportSave() : '')
+
+  return (
+    <div className="io-panel">
+      <textarea
+        className="io-text"
+        value={text}
+        placeholder={mode === 'import' ? '粘贴存档字符串…' : ''}
+        onChange={(e) => setText(e.target.value)}
+        readOnly={mode === 'export'}
+      />
+      {mode === 'export' ? (
+        <button
+          className="btn primary"
+          onClick={() => {
+            navigator.clipboard?.writeText(text)
+          }}
+        >
+          复制到剪贴板
+        </button>
+      ) : (
+        <button
+          className="btn primary"
+          onClick={() => {
+            if (loadGame(text)) onClose()
+          }}
+        >
+          导入
+        </button>
+      )}
+    </div>
+  )
+}
+
+function GMPanel({ onClose }: { onClose: () => void }) {
+  const gmGrant = useGame((s) => s.gmGrant)
+  const [gold, setGold] = useState(1000000)
+  const [playerLv, setPlayerLv] = useState(1)
+  const [equipLv, setEquipLv] = useState(40)
+  const [equipQua, setEquipQua] = useState(4)
+  return (
+    <div className="gm-panel">
+      <label>
+        增加灵石 <input type="number" value={gold} onChange={(e) => setGold(Number(e.target.value))} />
+      </label>
+      <label>
+        玩家等级 <input type="number" value={playerLv} onChange={(e) => setPlayerLv(Number(e.target.value))} />
+      </label>
+      <label>
+        装备等级 <input type="number" value={equipLv} onChange={(e) => setEquipLv(Number(e.target.value))} />
+      </label>
+      <label>
+        装备品质 (0-4) <input type="number" min={0} max={4} value={equipQua} onChange={(e) => setEquipQua(Math.max(0, Math.min(4, Number(e.target.value))))} />
+      </label>
+      <button
+        className="btn primary"
+        onClick={() => {
+          gmGrant({ gold, playerLv, equipLv, equipQua })
+          onClose()
+        }}
+      >
+        确定
+      </button>
+    </div>
+  )
+}
+
+export default function App() {
+  useGameLoop()
+  const [panel, setPanel] = useState<Panel>(null)
+  const refreshDungeons = useGame((s) => s.refreshDungeons)
+  const saveGame = useGame((s) => s.saveGame)
+  const hardReset = useGame((s) => s.hardReset)
+  const strengthenTarget = useGame((s) => s.strengthenTarget)
+  const openStrengthen = useGame((s) => s.openStrengthen)
+  const closeStrengthen = useGame((s) => s.closeStrengthen)
+
+  const onMenu = (key: (typeof MENU)[number]['key']) => {
+    if (key === 'refresh') return refreshDungeons()
+    if (key === 'save') return saveGame(true)
+    setPanel(key as Panel)
+  }
+
+  return (
+    <div className="game-root">
+      <div className="game-frame">
+        <div className="left-col">
+          <div className="top-panels">
+            <StatusPanel />
+            <EquipmentBar />
+          </div>
+          <SystemLog />
+        </div>
+        <div className="right-col">
+          <MapPanel />
+          <div className="menu-bar">
+            {MENU.map((m) => (
+              <button key={m.label} className="menu-btn" onClick={() => onMenu(m.key)} title={m.label}>
+                <span className="menu-icon">{m.icon}</span>
+                <span className="menu-label">{m.label}</span>
+              </button>
+            ))}
+            <button className="menu-btn danger" onClick={() => window.confirm('确定清除存档并重新开始？') && hardReset()} title="清除存档">
+              <span className="menu-icon">🗑️</span>
+              <span className="menu-label">清档</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {panel === 'char' && (
+        <Modal title="角色属性" onClose={() => setPanel(null)}>
+          <CharacterPanel />
+        </Modal>
+      )}
+      {panel === 'backpack' && (
+        <Modal title="背包" onClose={() => setPanel(null)} wide>
+          <Backpack
+            onStrengthen={(index) => {
+              openStrengthen(index)
+              setPanel(null)
+            }}
+          />
+        </Modal>
+      )}
+      {panel === 'shop' && (
+        <Modal title="装备商店" onClose={() => setPanel(null)} wide>
+          <Shop />
+        </Modal>
+      )}
+      {panel === 'skills' && (
+        <Modal title="技能" onClose={() => setPanel(null)} wide>
+          <SkillsPanel />
+        </Modal>
+      )}
+      {panel === 'rein' && (
+        <Modal title="角色转生" onClose={() => setPanel(null)}>
+          <ReincarnationPanel onClose={() => setPanel(null)} />
+        </Modal>
+      )}
+      {panel === 'hero' && (
+        <Modal title="选择勇士" onClose={() => setPanel(null)}>
+          <HeroPicker />
+        </Modal>
+      )}
+      {import.meta.env.DEV && panel === 'gm' && (
+        <Modal title="GM 面板" onClose={() => setPanel(null)}>
+          <GMPanel onClose={() => setPanel(null)} />
+        </Modal>
+      )}
+      {(panel === 'import' || panel === 'export') && (
+        <Modal title={panel === 'import' ? '导入存档' : '导出存档'} onClose={() => setPanel(null)}>
+          <ImportExport mode={panel} onClose={() => setPanel(null)} />
+        </Modal>
+      )}
+      {strengthenTarget && (
+        <Modal title="强化 / 重铸" onClose={closeStrengthen}>
+          <StrengthenPanel />
+        </Modal>
+      )}
+
+      <TooltipLayer />
+    </div>
+  )
+}

@@ -1,0 +1,30 @@
+{
+  "name": "gingko-biloba",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "轮回勇者传说 — a random-loot idle RPG, React port",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "gen:assets": "node --env-file-if-exists=.env scripts/generate-assets.mjs",
+    "gen:claude": "node --env-file-if-exists=.env scripts/generate-assets.mjs --claude",
+    "opt:assets": "node scripts/optimize-assets.mjs",
+    "opt:claude": "node scripts/optimize-assets.mjs --claude",
+    "gen:battle": "node --env-file-if-exists=.env scripts/generate-battle.mjs",
+    "opt:battle": "node scripts/optimize-battle.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
