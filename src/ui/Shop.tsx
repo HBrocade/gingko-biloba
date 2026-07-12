@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useGame } from '../game/store'
 import { useTooltip } from './tooltipStore'
 import { ItemIcon } from './ItemIcon'
+import { fmtNum } from '../game/format'
 
 export function Shop() {
   const shop = useGame((s) => s.shop)
@@ -69,11 +70,11 @@ export function Shop() {
               </div>
               {item && (
                 <>
-                  <div className={`shop-price${poor ? ' poor' : ''}`}>💎 {price.toLocaleString()}</div>
+                  <div className={`shop-price${poor ? ' poor' : ''}`}>💎 {fmtNum(price)}</div>
                   <button
                     className="btn buy-btn"
                     disabled={blocked}
-                    title={poor ? '灵石不足' : bagFull ? '背包已满，请先清理背包' : `花费 ${price} 灵石购买`}
+                    title={poor ? '灵石不足' : bagFull ? '背包已满，请先清理背包' : `花费 ${fmtNum(price)} 灵石购买`}
                     onClick={() => buyShopItem(k)}
                   >
                     {label}
@@ -93,7 +94,7 @@ export function Shop() {
           {refreshLeft < 5 && <span className="dim">下次 +1：{regenSec}s</span>}
         </div>
         <button className="btn" onClick={() => onRefresh('gold')}>
-          10000 灵石刷新
+          1万灵石刷新
         </button>
         <button className="btn primary" onClick={() => onRefresh('free')}>
           免费刷新

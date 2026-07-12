@@ -1,8 +1,9 @@
 import { useGame } from '../game/store'
 import { expForLevel, PRIMARY_EFFECT } from '../game/formulas'
+import { fmtNum } from '../game/format'
 
 function fmt(n: number): string {
-  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return fmtNum(Math.round(n))
 }
 
 const PRIMARY_ROWS: { key: keyof typeof PRIMARY_EFFECT; name: string; icon: string; desc: string }[] = [

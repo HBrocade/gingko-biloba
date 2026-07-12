@@ -1,5 +1,6 @@
 import type { Item } from '../game/types'
 import { enchantMultiplier } from '../game/formulas'
+import { fmtNum } from '../game/format'
 import { AFFIX_COLOR } from '../game/constants'
 import { useGame } from '../game/store'
 import { ItemIcon } from './ItemIcon'
@@ -58,9 +59,9 @@ export function ItemCard({ item }: Props) {
             <div className="ic-entry" key={i}>
               <span>{v.name}</span>
               <span className="ic-val">
-                +{eff}
+                +{fmtNum(eff)}
                 {pct ? '%' : ''}
-                {item.enchantlvl > 0 && bonus > 0 && <span className="ic-bonus"> (+{bonus})</span>}
+                {item.enchantlvl > 0 && bonus > 0 && <span className="ic-bonus"> (+{fmtNum(bonus)})</span>}
               </span>
             </div>
           )
@@ -80,9 +81,9 @@ export function ItemCard({ item }: Props) {
                   {v.name}
                 </span>
                 <span className="ic-val">
-                  +{eff}
+                  +{fmtNum(eff)}
                   {pct ? '%' : ''}
-                  {item.enchantlvl > 0 && bonus > 0 && <span className="ic-bonus"> (+{bonus})</span>}
+                  {item.enchantlvl > 0 && bonus > 0 && <span className="ic-bonus"> (+{fmtNum(bonus)})</span>}
                   {v.q != null && <span className="ic-lvl"> {Math.round(v.q * 100)}%</span>}
                 </span>
               </div>

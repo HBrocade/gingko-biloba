@@ -1,5 +1,6 @@
 import { DMGAMP_CHANCE, INNATE_COUNT, ITEM_DATA, RECAST_POOL } from './itemData'
 import { qualityTable, QUALITY_PROBABILITY } from './constants'
+import { fmtNum } from './format'
 import type {
   AttrType,
   Dungeon,
@@ -42,7 +43,7 @@ export function isPercentDisplay(type: AttrType): boolean {
 }
 
 function showVal(type: AttrType, value: number): string {
-  return isPercentDisplay(type) ? `+${value}%` : `+${value}`
+  return isPercentDisplay(type) ? `+${value}%` : `+${fmtNum(value)}`
 }
 
 // ---------------------------------------------------------------------------
@@ -274,8 +275,6 @@ export function shopPrice(item: Item): number {
 // ---------------------------------------------------------------------------
 // 升级 / 经验
 // ---------------------------------------------------------------------------
-export const LEVEL_CAP = 999
-
 /** 1 灵石 可转换为的 EXP 数量。 */
 export const LINGSHI_TO_EXP = 10
 

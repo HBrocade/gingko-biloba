@@ -1,5 +1,6 @@
 import { useGame } from '../game/store'
 import { computePlayerAttribute, itemScore } from '../game/formulas'
+import { fmtNum } from '../game/format'
 import type { Item } from '../game/types'
 
 /** 展示装备该物品后，玩家属性会如何变化。 */
@@ -50,7 +51,7 @@ export function CompareDelta({ item }: { item: Item }) {
           <div className="cd-row" key={r.k}>
             <span className="cd-k">{r.k}</span>
             <span className={r.d > 0 ? 'up' : 'down'}>
-              {r.d > 0 ? '▲' : '▼'} {Math.abs(r.d).toFixed(r.dec)}
+              {r.d > 0 ? '▲' : '▼'} {r.unit ? Math.abs(r.d).toFixed(r.dec) : fmtNum(Math.abs(r.d))}
               {r.unit || ''}
             </span>
           </div>

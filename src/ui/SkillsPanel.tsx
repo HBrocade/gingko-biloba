@@ -1,5 +1,6 @@
 import { useGame } from '../game/store'
 import { SKILL_CATALOG } from '../game/skills'
+import { fmtNum } from '../game/format'
 
 export function SkillsPanel() {
   const skills = useGame((s) => s.skills)
@@ -34,7 +35,7 @@ export function SkillsPanel() {
                 <div className="sk-body">
                   <div className="sk-name">{sk.name}</div>
                   <div className="sk-stats">
-                    <span title="每次伤害 = 倍率 × 攻击力">💥 {sk.multiplier}×攻击 ≈ {Math.round(sk.multiplier * atk).toLocaleString()}</span>
+                    <span title="每次伤害 = 倍率 × 攻击力">💥 {sk.multiplier}×攻击 ≈ {fmtNum(Math.round(sk.multiplier * atk))}</span>
                     <span>✦ {sk.mpCost} MP</span>
                     <span>⏱ {sk.cooldown}s</span>
                   </div>
@@ -64,7 +65,7 @@ export function SkillsPanel() {
                   </div>
                 </div>
                 <div className="sk-buy">
-                  <div className={`sk-price${poor ? ' poor' : ''}`}>💎 {sk.price.toLocaleString()}</div>
+                  <div className={`sk-price${poor ? ' poor' : ''}`}>💎 {fmtNum(sk.price)}</div>
                   <button className="btn primary" disabled={poor} onClick={() => buySkill(sk.id)}>
                     {poor ? '钱不够' : '学习'}
                   </button>

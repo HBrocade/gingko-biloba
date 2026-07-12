@@ -4,6 +4,7 @@ import { heroImg } from '../assets/heroes'
 import { battleTier, battleBgUrl, fxUrl } from '../assets/battle'
 import { skillById } from '../game/skills'
 import { ABYSS_TIERS, abyssTierByKey, abyssEntryCost } from '../game/formulas'
+import { fmtNum } from '../game/format'
 import type { Dungeon } from '../game/types'
 
 function BattleStage() {
@@ -66,7 +67,7 @@ function BattleStage() {
         <div className="bs-side hero-side">
           {enemyFx && (
             <div className="bs-dmg hero-dmg" key={`hd-${enemyFx.id}`}>
-              -{enemyFx.dmg}
+              -{fmtNum(enemyFx.dmg)}
             </div>
           )}
           <img className={`sprite bs-hero${fighting ? ' attacking' : ' walking'}`} src={heroImg(heroId)} alt="hero" />
@@ -92,7 +93,7 @@ function BattleStage() {
           )}
           {heroFx && (
             <div className={`bs-dmg enemy-dmg${skillDef ? ' skill' : ''}`} key={`ed-${heroFx.id}`}>
-              -{heroFx.dmg}
+              -{fmtNum(heroFx.dmg)}
             </div>
           )}
           <img key={idx} className={`sprite bs-enemy${isBoss ? ' boss' : ''}${fighting ? ' hurt' : ''}`} src={isBoss ? IMG.boss : IMG.monster} alt="enemy" />
@@ -157,7 +158,7 @@ function DungeonInfo({ d }: { d: Dungeon }) {
         </div>
         <div className="di-row">
           <span>深渊层数：{abyssLv}</span>
-          <span className={canAfford ? '' : 'red'}>进入花费：💎{cost.toLocaleString()}</span>
+          <span className={canAfford ? '' : 'red'}>进入花费：💎{fmtNum(cost)}</span>
         </div>
         <div className="di-desc">
           <p>· 深渊只掉落装备，不产出灵石</p>
@@ -198,7 +199,7 @@ function DungeonInfo({ d }: { d: Dungeon }) {
         </div>
       </div>
       <div className="di-row">
-        <span className="di-dps">推荐 DPS：{isEndless ? '???' : d.needDPS}</span>
+        <span className="di-dps">推荐 DPS：{isEndless ? '???' : fmtNum(d.needDPS)}</span>
         <span>{isEndless ? `无尽层数：${d.lv}` : `副本等级：Lv${d.lvMin}-${d.lvMax}`}</span>
       </div>
       <div className="di-desc">

@@ -1,10 +1,7 @@
 import { useGame } from '../game/store'
 import { IMG } from '../assets/game'
 import { expForLevel, lingshiForLevels } from '../game/formulas'
-
-function fmt(n: number): string {
-  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-}
+import { fmtNum as fmt } from '../game/format'
 
 const PRIMARY_ROWS = [
   { k: 'STR', n: '力量', i: '💪', t: '力量 → 攻击' },

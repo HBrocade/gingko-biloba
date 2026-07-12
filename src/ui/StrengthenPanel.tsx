@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useGame } from '../game/store'
 import { baptizeNeedGold, enchantMultiplier, recastNeedGold, strengthenNeedGold } from '../game/formulas'
+import { fmtNum } from '../game/format'
 import { RECAST_POOL } from '../game/itemData'
 import { AFFIX_COLOR } from '../game/constants'
 import type { AttrType } from '../game/types'
@@ -53,13 +54,13 @@ export function StrengthenPanel() {
             <div className="st-line" key={i}>
               <span>{v.name}</span>
               <span className="st-old">
-                +{now}
+                +{fmtNum(now)}
                 {isPct ? '%' : ''}
               </span>
               <span className="st-arrow">➜</span>
               <span className="st-new">
-                +{next}
-                {isPct ? '%' : ''} <span className="st-up">⬆{next - now}</span>
+                +{fmtNum(next)}
+                {isPct ? '%' : ''} <span className="st-up">⬆{fmtNum(next - now)}</span>
               </span>
             </div>
           )
@@ -68,7 +69,7 @@ export function StrengthenPanel() {
 
       <div className="st-actions">
         <span>
-          需要灵石：<b className={gold < need ? 'red' : ''}>{need}</b>
+          需要灵石：<b className={gold < need ? 'red' : ''}>{fmtNum(need)}</b>
         </span>
         <button className="btn primary" onClick={() => doStrengthen()}>
           强化至 +{item.enchantlvl + 1}
@@ -87,14 +88,14 @@ export function StrengthenPanel() {
           className="btn"
           disabled={gold < need || item.enchantlvl >= autoTarget}
           onClick={() => autoStrengthen(autoTarget)}
-          title={`一直强化直到 +${autoTarget} 或灵石不足（每级 ${need}+ 灵石，越高越贵、可能失败降级）`}
+          title={`一直强化直到 +${autoTarget} 或灵石不足（每级 ${fmtNum(need)}+ 灵石，越高越贵、可能失败降级）`}
         >
           强化到 +{autoTarget}
         </button>
       </div>
 
       <div className="st-section-label" title="重铸只改变基础词条的类型（固定数值、吃强化）；选一个方向可“洗到为止”">
-        — 词条重铸 · 换类型（{recast} 灵石 / 次）—
+        — 词条重铸 · 换类型（{fmtNum(recast)} 灵石 / 次）—
       </div>
       <div className="st-reforge">
         {item.extraEntry.map((v, k) => {
@@ -123,8 +124,8 @@ export function StrengthenPanel() {
                   洗到「{label}」
                 </button>
               ) : (
-                <button className="btn re-btn" disabled={gold < recast} onClick={() => doReforge(k)} title={`随机重铸一次，花费 ${recast} 灵石`}>
-                  重铸 💎{recast}
+                <button className="btn re-btn" disabled={gold < recast} onClick={() => doReforge(k)} title={`随机重铸一次，花费 ${fmtNum(recast)} 灵石`}>
+                  重铸 💎{fmtNum(recast)}
                 </button>
               )}
             </div>
@@ -177,7 +178,7 @@ export function StrengthenPanel() {
           onClick={() => baptize()}
           title="随机刷新一次所有未锁定词条的品质数值"
         >
-          品质洗礼 💎{baptizeCost}
+          品质洗礼 💎{fmtNum(baptizeCost)}
         </button>
       </div>
       <div className="st-actions">

@@ -26,7 +26,6 @@ import {
   expForLevel,
   expToRaise,
   itemScore,
-  LEVEL_CAP,
   LINGSHI_TO_EXP,
   type Primary,
   recastNeedGold,
@@ -37,6 +36,7 @@ import {
   uid,
 } from './formulas'
 import { REIN_ATTRS, randomAllocateReincarnation } from './reincarnation'
+import { fmtNum } from './format'
 import {
   BACKPACK_SIZE,
   EMPTY_REINCARNATION_ATTR,
@@ -342,7 +342,7 @@ export const useGame = create<GameState>((set, get) => {
         // 无尽：不掉装备，只掉提升后的 灵石
         const gold = Math.floor(event.trophy.gold * 1.5)
         get().addGold(gold)
-        pushLog({ type: 'trophy', msg: `获得灵石 ${gold}` })
+        pushLog({ type: 'trophy', msg: `获得灵石 ${fmtNum(gold)}` })
         return
       }
       const dropItems = [...items, rolled]
@@ -352,13 +352,13 @@ export const useGame = create<GameState>((set, get) => {
       } else {
         const gold = Math.floor(event.trophy.gold)
         get().addGold(gold)
-        pushLog({ type: 'trophy', msg: `获得灵石 ${gold}`, equip: dropItems })
+        pushLog({ type: 'trophy', msg: `获得灵石 ${fmtNum(gold)}`, equip: dropItems })
       }
       for (const it of dropItems) {
         if (state.autoSell[equipQua] && it.quality.name !== '独特') {
           const g = sellPrice(it)
           get().addGold(g)
-          pushLog({ type: 'trophy', msg: `自动出售装备获得灵石 ${g}` })
+          pushLog({ type: 'trophy', msg: `自动出售装备获得灵石 ${fmtNum(g)}` })
         } else {
           const ok = addItemToBackpack(it)
           if (!ok) pushLog({ type: 'warning', msg: '背包已满，装备无法拾取！' })
@@ -369,7 +369,7 @@ export const useGame = create<GameState>((set, get) => {
       const goldRatio = isEndless ? 2.6 : 1
       const gold = Math.floor(event.trophy.gold * goldRatio)
       get().addGold(gold)
-      pushLog({ type: 'trophy', msg: `获得灵石 ${gold}` })
+      pushLog({ type: 'trophy', msg: `获得灵石 ${fmtNum(gold)}` })
     }
   }
 
@@ -578,7 +578,7 @@ export const useGame = create<GameState>((set, get) => {
       winFight()
     } else if (heroHp <= 1) {
       stopTimer()
-      pushLog({ type: 'warning', msg: `战斗失败！本场受到了 ${dmgTaken} 点伤害。` })
+      pushLog({ type: 'warning', msg: `战斗失败！本场受到了 ${fmtNum(dmgTaken)} 点伤害。` })
       pushLog({ type: 'warning', msg: '试试强化或重铸装备之后再来挑战吧。' })
       set({ battle: null, selectedDungeon: null })
     } else if (now - f.fightStart > MAX_FIGHT_MS) {
@@ -683,12 +683,11 @@ export const useGame = create<GameState>((set, get) => {
       let lv = get().lv
       let exp = get().exp + Math.max(0, Math.floor(amount))
       let leveled = 0
-      while (lv < LEVEL_CAP && exp >= expForLevel(lv)) {
+      while (exp >= expForLevel(lv)) {
         exp -= expForLevel(lv)
         lv++
         leveled++
       }
-      if (lv >= LEVEL_CAP) exp = 0
       set({ lv, exp })
       if (leveled) {
         get().recompute()
@@ -699,12 +698,11 @@ export const useGame = create<GameState>((set, get) => {
     },
     buyLevels: (n) => {
       const s = get()
-      n = Math.min(n, LEVEL_CAP - s.lv)
       if (n <= 0) return
       const totalExp = expToRaise(s.lv, s.exp, n)
       const cost = Math.ceil(totalExp / LINGSHI_TO_EXP)
       if (s.gold < cost) {
-        pushLog({ type: 'warning', msg: `灵石不足：提升 ${n} 级需要 ${cost} 灵石（当前 ${s.gold}）。` })
+        pushLog({ type: 'warning', msg: `灵石不足：提升 ${n} 级需要 ${fmtNum(cost)} 灵石（当前 ${fmtNum(s.gold)}）。` })
         return
       }
       set({ gold: s.gold - cost })
@@ -791,7 +789,7 @@ export const useGame = create<GameState>((set, get) => {
       backpack[index] = null
       const g = sellPrice(item)
       set({ backpack, gold: s.gold + g })
-      if (!opts?.silent) pushLog({ type: 'trophy', msg: `出售装备获得灵石 ${g}` })
+      if (!opts?.silent) pushLog({ type: 'trophy', msg: `出售装备获得灵石 ${fmtNum(g)}` })
     },
 
     toggleLock: (index) => {
@@ -997,11 +995,11 @@ export const useGame = create<GameState>((set, get) => {
       if (dungeon.type === 'abyss') {
         const cost = abyssEntryCost(abyssTierByKey(s.abyssTier), s.lv, s.abyssLv)
         if (s.gold < cost) {
-          pushLog({ type: 'warning', msg: `进入深渊需要 ${cost} 灵石，灵石不足。` })
+          pushLog({ type: 'warning', msg: `进入深渊需要 ${fmtNum(cost)} 灵石，灵石不足。` })
           return
         }
         set({ gold: s.gold - cost })
-        pushLog({ type: 'warning', msg: `支付 ${cost} 灵石，进入 ${dungeon.name}` })
+        pushLog({ type: 'warning', msg: `支付 ${fmtNum(cost)} 灵石，进入 ${dungeon.name}` })
       } else {
         pushLog({ type: 'warning', msg: `进入 ${dungeon.type === 'endless' ? `无尽（第${dungeon.lv}层）` : dungeon.name}` })
       }
@@ -1070,9 +1068,9 @@ export const useGame = create<GameState>((set, get) => {
       set({ gold, strengthenTarget: item })
       const spent = s.gold - gold
       if (item.enchantlvl >= targetLv) {
-        pushLog({ type: 'win', msg: `强化 ${attempts} 次达到 +${item.enchantlvl}，共花费 ${spent} 灵石。` })
+        pushLog({ type: 'win', msg: `强化 ${attempts} 次达到 +${item.enchantlvl}，共花费 ${fmtNum(spent)} 灵石。` })
       } else {
-        pushLog({ type: 'warning', msg: `灵石不足停止：强化 ${attempts} 次，当前 +${item.enchantlvl}（目标 +${targetLv}），花费 ${spent} 灵石。` })
+        pushLog({ type: 'warning', msg: `灵石不足停止：强化 ${attempts} 次，当前 +${item.enchantlvl}（目标 +${targetLv}），花费 ${fmtNum(spent)} 灵石。` })
       }
     },
 
@@ -1124,9 +1122,9 @@ export const useGame = create<GameState>((set, get) => {
       set({ gold, strengthenTarget: updated })
       const spent = s.gold - gold
       if (hit) {
-        pushLog({ type: 'win', msg: `重铸 ${attempts} 次命中【${name}】，共花费 ${spent} 灵石。` })
+        pushLog({ type: 'win', msg: `重铸 ${attempts} 次命中【${name}】，共花费 ${fmtNum(spent)} 灵石。` })
       } else {
-        pushLog({ type: 'warning', msg: `灵石不足停止：重铸 ${attempts} 次仍未洗出【${name}】，花费 ${spent} 灵石。` })
+        pushLog({ type: 'warning', msg: `灵石不足停止：重铸 ${attempts} 次仍未洗出【${name}】，花费 ${fmtNum(spent)} 灵石。` })
       }
     },
 
@@ -1174,7 +1172,7 @@ export const useGame = create<GameState>((set, get) => {
       }
       const cost = baptizeNeedGold(item, lockedCount)
       if (s.gold < cost) {
-        pushLog({ type: 'warning', msg: `灵石不足：本次洗礼需 ${cost} 灵石。` })
+        pushLog({ type: 'warning', msg: `灵石不足：本次洗礼需 ${fmtNum(cost)} 灵石。` })
         return
       }
       const lv = item.lv
@@ -1185,7 +1183,7 @@ export const useGame = create<GameState>((set, get) => {
       const updated: Item = { ...item, extraEntry, innate, locked: true }
       writeBackItem(updated)
       set({ gold: s.gold - cost, strengthenTarget: updated })
-      pushLog({ type: 'win', msg: `品质洗礼完成，花费 ${cost} 灵石。` })
+      pushLog({ type: 'win', msg: `品质洗礼完成，花费 ${fmtNum(cost)} 灵石。` })
     },
 
     // 快速洗礼：反复洗未锁定词条，某条品质达标即自动锁定，直到全部达标或灵石不足。
@@ -1220,9 +1218,9 @@ export const useGame = create<GameState>((set, get) => {
       set({ gold, strengthenTarget: updated })
       const spent = s.gold - gold
       if (allLocked()) {
-        pushLog({ type: 'win', msg: `快速洗礼完成：全部达到品质 ${targetPct}%，洗礼 ${iters} 次，共花费 ${spent} 灵石。` })
+        pushLog({ type: 'win', msg: `快速洗礼完成：全部达到品质 ${targetPct}%，洗礼 ${iters} 次，共花费 ${fmtNum(spent)} 灵石。` })
       } else {
-        pushLog({ type: 'warning', msg: `灵石不足停止：${lockedNow()}/${total} 条达到品质 ${targetPct}%，洗礼 ${iters} 次，花费 ${spent} 灵石。` })
+        pushLog({ type: 'warning', msg: `灵石不足停止：${lockedNow()}/${total} 条达到品质 ${targetPct}%，洗礼 ${iters} 次，花费 ${fmtNum(spent)} 灵石。` })
       }
     },
 
@@ -1242,8 +1240,8 @@ export const useGame = create<GameState>((set, get) => {
       })
       get().recompute(false)
       get().refreshDungeons(true)
-      const parts = REIN_ATTRS.filter((a) => added[a.key] > 0).map((a) => `${a.name}+${added[a.key]}`)
-      pushLog({ type: 'win', msg: `转生成功！获得 ${gainedPoint} 点，随机分配：${parts.join('、') || '无'}。` })
+      const parts = REIN_ATTRS.filter((a) => added[a.key] > 0).map((a) => `${a.name}+${fmtNum(added[a.key])}`)
+      pushLog({ type: 'win', msg: `转生成功！获得 ${fmtNum(gainedPoint)} 点，随机分配：${parts.join('、') || '无'}。` })
     },
 
     gmGrant: ({ gold, playerLv, equipLv, equipQua }) => {
