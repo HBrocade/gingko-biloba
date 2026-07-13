@@ -3,7 +3,7 @@ import { IMG } from '../assets/game'
 import { heroImg } from '../assets/heroes'
 import { battleTier, battleBgUrl, fxUrl } from '../assets/battle'
 import { skillById } from '../game/skills'
-import { ABYSS_TIERS, abyssTierByKey, abyssEntryCost } from '../game/formulas'
+import { ABYSS_TIERS, abyssTierByKey, abyssEntryCost, mineYield } from '../game/formulas'
 import { fmtNum } from '../game/format'
 import type { Dungeon } from '../game/types'
 
@@ -109,6 +109,56 @@ function BattleStage() {
   )
 }
 
+function MineStage() {
+  const battle = useGame((s) => s.battle)!
+  const stopBattle = useGame((s) => s.stopBattle)
+  const heroId = useGame((s) => s.heroId)
+  const mined = battle.mined ?? 0
+  const pop = battle.minePop
+  const bg = battleBgUrl('cave')
+
+  return (
+    <div
+      className="battle-scene tier-cave mine-scene"
+      style={bg ? { backgroundImage: `linear-gradient(rgba(6,8,12,0.4), rgba(6,8,12,0.65)), url(${bg})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+    >
+      <div className="bs-top">
+        <button className="btn danger bs-stop" onClick={() => stopBattle(true)}>
+          收工离开
+        </button>
+        <div className="bs-info">
+          <div className="bs-name">矿场 · 矿奴</div>
+          <div className="bs-sub">安全挖矿中… 本次已挖 💎{fmtNum(mined)}</div>
+        </div>
+        <div className="bs-progress">
+          <div className="bs-progress-fill mine-fill" style={{ width: `${battle.left}%` }} />
+        </div>
+      </div>
+
+      <div className="bs-arena mine-arena">
+        {pop && (
+          <div className="mine-pop" key={pop.id}>
+            +{fmtNum(pop.dmg)} 💎
+          </div>
+        )}
+        <div className="mine-figure">
+          <img className="sprite bs-hero mining" src={heroImg(heroId)} alt="miner" />
+          <span className="mine-pick" aria-hidden="true">
+            <svg viewBox="0 0 44 44" width="44" height="44">
+              {/* 镐头（金属弧）在顶端，木柄向下由矿奴握持 */}
+              <path d="M5 15 Q22 4 39 15" fill="none" stroke="#dfe3ea" strokeWidth="6" strokeLinecap="round" />
+              <path d="M5 15 Q22 4 39 15" fill="none" stroke="#9aa0ab" strokeWidth="2.5" strokeLinecap="round" opacity="0.5" />
+              <rect x="20" y="13" width="4.4" height="27" rx="2.2" fill="#9a6631" />
+            </svg>
+          </span>
+          <span className="mine-spark" aria-hidden="true">✨</span>
+          <span className="mine-ore">💎</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DungeonInfo({ d }: { d: Dungeon }) {
   const beginBattle = useGame((s) => s.beginBattle)
   const closeDungeon = useGame((s) => s.closeDungeon)
@@ -126,6 +176,32 @@ function DungeonInfo({ d }: { d: Dungeon }) {
   const gold = useGame((s) => s.gold)
   const charLv = useGame((s) => s.lv)
   const isEndless = d.type === 'endless'
+
+  if (d.type === 'mine') {
+    const perCycle = mineYield(charLv)
+    return (
+      <div className="dungeon-info">
+        <div className="di-head">
+          <span>当前：矿场</span>
+          <div className="di-head-btns">
+            <button className="link-btn" onClick={closeDungeon}>
+              ✕
+            </button>
+          </div>
+        </div>
+        <div className="di-desc">
+          <p>· 当矿奴挖矿，安全无风险、不掉血、不消耗</p>
+          <p>· 每约 2.5 秒挖到约 💎{fmtNum(perCycle)} 灵石（随等级缓慢增长）</p>
+          <p>· 收益微薄，适合起步经济差时慢慢攒钱</p>
+        </div>
+        <div className="di-actions">
+          <button className="btn primary" onClick={beginBattle}>
+            开始挖矿
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (d.type === 'abyss') {
     const tier = abyssTierByKey(abyssTier)
@@ -253,6 +329,7 @@ export function MapPanel() {
   const selectDungeon = useGame((s) => s.selectDungeon)
   const selectEndless = useGame((s) => s.selectEndless)
   const selectAbyss = useGame((s) => s.selectAbyss)
+  const selectMine = useGame((s) => s.selectMine)
 
   return (
     <div
@@ -264,7 +341,11 @@ export function MapPanel() {
       }}
     >
       {battle ? (
-        <BattleStage />
+        battle.dungeon.type === 'mine' ? (
+          <MineStage />
+        ) : (
+          <BattleStage />
+        )
       ) : (
         <>
           {dungeons.map((d) => (
@@ -292,6 +373,10 @@ export function MapPanel() {
               <span className="node-lv">深渊</span>
             </button>
           )}
+          <button className="map-node mine" style={{ top: '6%', left: '36%' }} onClick={selectMine}>
+            <span className="node-icon">⛏️</span>
+            <span className="node-lv">矿场</span>
+          </button>
           {selectedDungeon && <DungeonInfo d={selectedDungeon} />}
         </>
       )}

@@ -146,8 +146,8 @@ export interface Dungeon {
   top: string
   left: string
   eventType: DungeonEvent[]
-  /** 用于特殊模式：无尽（灵石）或深渊（装备）。 */
-  type?: 'endless' | 'abyss'
+  /** 用于特殊模式：无尽（灵石）/ 深渊（装备）/ 矿场（无风险挖矿）。 */
+  type?: 'endless' | 'abyss' | 'mine'
 }
 
 export type SysInfoType = '' | 'warning' | 'battle' | 'win' | 'trophy'

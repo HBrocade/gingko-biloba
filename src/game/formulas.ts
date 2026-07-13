@@ -602,3 +602,31 @@ export function createAbyssDungeon(tier: AbyssTier, abyssLv: number): Dungeon {
   }
   return d
 }
+
+// ---------- 矿场 (mine) ----------
+// 无风险的经济副本：当矿奴，一边挖矿一边稳定获得微薄的 灵石，没有战斗、不掉血。
+// 适合起步经济差时用来攒钱；收益随等级缓慢增长，但始终远低于打副本的产出。
+
+/** 每挖矿周期获得的 灵石（微薄，随等级缓慢增长）。 */
+export function mineYield(lv: number): number {
+  return Math.floor(5 + Math.max(1, lv) * 1.5)
+}
+
+/** 构造矿场副本（无战斗、无等级）。 */
+export function createMineDungeon(): Dungeon {
+  return {
+    id: uid('mine'),
+    name: '矿场',
+    eventNum: 1,
+    lv: 0,
+    lvMin: 0,
+    lvMax: 0,
+    needDPS: 0,
+    difficulty: 1,
+    difficultyName: '',
+    top: '6%',
+    left: '36%',
+    eventType: [],
+    type: 'mine',
+  }
+}
