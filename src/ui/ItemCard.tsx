@@ -1,5 +1,5 @@
 import type { Item } from '../game/types'
-import { enchantMultiplier } from '../game/formulas'
+import { enchantMultiplier, sellPrice } from '../game/formulas'
 import { fmtNum } from '../game/format'
 import { AFFIX_COLOR } from '../game/constants'
 import { useGame } from '../game/store'
@@ -114,6 +114,11 @@ export function ItemCard({ item }: Props) {
       )}
 
       {item.type.des && <div className="ic-des">{item.type.des}</div>}
+
+      <div className="ic-sell">
+        <span>出售价</span>
+        <span className="ic-sell-v">💎 {fmtNum(sellPrice(item))}</span>
+      </div>
     </div>
   )
 }
