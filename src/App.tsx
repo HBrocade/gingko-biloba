@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ChangeEvent } from 'react'
 import { useGame } from './game/store'
 import { useGameLoop } from './hooks/useGameLoop'
 import { StatusPanel } from './ui/StatusPanel'
@@ -32,39 +32,93 @@ const MENU: { key: Panel | 'refresh' | 'save'; icon: string; label: string }[] =
   ...(import.meta.env.DEV ? [{ key: 'gm' as Panel, icon: '🛠️', label: 'GM' }] : []),
 ]
 
+/** 触发浏览器下载一段文本为文件。 */
+function downloadText(filename: string, text: string, mime = 'application/json') {
+  const blob = new Blob([text], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+/** 生成带时间戳的存档文件名，如 gingko-存档-20260713-164900.json。 */
+function saveFilename() {
+  const d = new Date()
+  const p = (n: number) => `${n}`.padStart(2, '0')
+  return `gingko-存档-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.json`
+}
+
 function ImportExport({ mode, onClose }: { mode: 'import' | 'export'; onClose: () => void }) {
   const exportSave = useGame((s) => s.exportSave)
   const loadGame = useGame((s) => s.loadGame)
   const [text, setText] = useState(mode === 'export' ? exportSave() : '')
+  const [status, setStatus] = useState('')
+
+  const doImport = (raw: string) => {
+    if (!raw.trim()) {
+      setStatus('请先选择存档文件，或在下方粘贴存档内容。')
+      return
+    }
+    if (loadGame(raw)) onClose()
+    else setStatus('存档解析失败，请确认文件完整且未被截断。')
+  }
+
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // 允许再次选择同一文件
+    if (!file) return
+    try {
+      const txt = await file.text()
+      setText(txt)
+      doImport(txt)
+    } catch {
+      setStatus('读取文件失败。')
+    }
+  }
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setStatus('已复制到剪贴板。')
+    } catch {
+      setStatus('当前环境无法访问剪贴板，请改用“下载 JSON 文件”。')
+    }
+  }
 
   return (
     <div className="io-panel">
+      {mode === 'import' && (
+        <label className="btn primary io-file">
+          选择存档文件（.json）
+          <input type="file" accept="application/json,.json" onChange={onFile} hidden />
+        </label>
+      )}
       <textarea
         className="io-text"
         value={text}
-        placeholder={mode === 'import' ? '粘贴存档字符串…' : ''}
+        placeholder={mode === 'import' ? '或在此粘贴存档 JSON 内容…' : ''}
         onChange={(e) => setText(e.target.value)}
         readOnly={mode === 'export'}
       />
       {mode === 'export' ? (
-        <button
-          className="btn primary"
-          onClick={() => {
-            navigator.clipboard?.writeText(text)
-          }}
-        >
-          复制到剪贴板
-        </button>
+        <div className="io-row">
+          <button className="btn primary" onClick={() => downloadText(saveFilename(), text)}>
+            下载 JSON 文件
+          </button>
+          <button className="btn" onClick={copyToClipboard}>
+            复制到剪贴板
+          </button>
+        </div>
       ) : (
-        <button
-          className="btn primary"
-          onClick={() => {
-            if (loadGame(text)) onClose()
-          }}
-        >
+        <button className="btn primary" onClick={() => doImport(text)}>
           导入
         </button>
       )}
+      {status && <div className="io-status">{status}</div>}
     </div>
   )
 }

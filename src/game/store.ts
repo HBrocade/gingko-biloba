@@ -49,7 +49,7 @@ import {
   SHOP_SIZE,
 } from './initial'
 import { RECAST_POOL } from './itemData'
-import { b64decode, b64encode, SAVE_KEY } from './save'
+import { b64encode, SAVE_KEY, encodeSaveJson, decodeSave } from './save'
 import { DEFAULT_HERO } from '../assets/heroes'
 import {
   maxMpFor,
@@ -289,6 +289,28 @@ export const useGame = create<GameState>((set, get) => {
   const setMp = (value: number) => {
     const { maxMp } = get()
     set({ mp: Math.max(0, Math.min(maxMp, value)) })
+  }
+
+  /** 收集需要持久化的存档字段（保存与导出共用，保证两者一致）。 */
+  const buildSaveData = () => {
+    const s = get()
+    return {
+      v: 1,
+      lv: s.lv,
+      exp: s.exp,
+      gold: s.gold,
+      endlessLv: s.endlessLv,
+      abyssLv: s.abyssLv,
+      abyssTier: s.abyssTier,
+      reincarnation: s.reincarnation,
+      reincarnationAttribute: s.reincarnationAttribute,
+      equipment: s.equipment,
+      backpack: s.backpack,
+      autoSell: s.autoSell,
+      heroId: s.heroId,
+      skills: s.skills,
+      curhpRatio: s.attribute.MAXHP.value ? s.attribute.CURHP.value / s.attribute.MAXHP.value : 1,
+    }
   }
 
   const firstEmpty = (arr: (Item | null)[]) => arr.findIndex((x) => x == null)
@@ -1290,26 +1312,9 @@ export const useGame = create<GameState>((set, get) => {
     },
 
     saveGame: (notify) => {
-      const s = get()
-      const data = {
-        v: 1,
-        lv: s.lv,
-        exp: s.exp,
-        gold: s.gold,
-        endlessLv: s.endlessLv,
-        abyssLv: s.abyssLv,
-        abyssTier: s.abyssTier,
-        reincarnation: s.reincarnation,
-        reincarnationAttribute: s.reincarnationAttribute,
-        equipment: s.equipment,
-        backpack: s.backpack,
-        autoSell: s.autoSell,
-        heroId: s.heroId,
-        skills: s.skills,
-        curhpRatio: s.attribute.MAXHP.value ? s.attribute.CURHP.value / s.attribute.MAXHP.value : 1,
-      }
       try {
-        localStorage.setItem(SAVE_KEY, b64encode(b64encode(JSON.stringify(data))))
+        // 本地存档（localStorage）沿用双重 base64，兼容既有玩家的历史存档。
+        localStorage.setItem(SAVE_KEY, b64encode(b64encode(JSON.stringify(buildSaveData()))))
         if (notify) pushLog({ type: 'win', msg: '游戏进度已保存。' })
       } catch {
         pushLog({ type: 'warning', msg: '保存失败。' })
@@ -1320,8 +1325,20 @@ export const useGame = create<GameState>((set, get) => {
       try {
         const src = raw ?? localStorage.getItem(SAVE_KEY)
         if (!src) return false
-        const json = b64decode(b64decode(src))
-        const d = JSON.parse(json)
+        // decodeSave 容错解析：明文 JSON 文档 / 旧版 base64 字符串均可读取。
+        const d = decodeSave(src) as Record<string, any>
+        // 结构校验：拒绝“能解析但并非存档”的 JSON（如误选的其它 .json 文件），
+        // 否则会用默认值静默覆盖当前进度并谎报“读取成功”。真实存档必带 v 字段。
+        const looksLikeSave =
+          !!d &&
+          typeof d === 'object' &&
+          !Array.isArray(d) &&
+          typeof d.v === 'number' &&
+          (typeof d.lv === 'number' || typeof d.gold === 'number')
+        if (!looksLikeSave) {
+          pushLog({ type: 'warning', msg: '这不是有效的存档文件。' })
+          return false
+        }
         set({
           lv: d.lv ?? 1,
           exp: d.exp ?? 0,
@@ -1331,7 +1348,7 @@ export const useGame = create<GameState>((set, get) => {
           abyssTier: d.abyssTier ?? 't1',
           reincarnation: d.reincarnation ?? { count: 0, point: 0 },
           reincarnationAttribute: d.reincarnationAttribute ?? { ...EMPTY_REINCARNATION_ATTR },
-          equipment: d.equipment ?? freshEquipment(),
+          equipment: normalizeEquipment(d.equipment),
           backpack: normalizeBackpack(d.backpack),
           autoSell: d.autoSell ?? [false, false, false, false],
           heroId: d.heroId ?? DEFAULT_HERO,
@@ -1350,10 +1367,8 @@ export const useGame = create<GameState>((set, get) => {
       }
     },
 
-    exportSave: () => {
-      get().saveGame(false)
-      return localStorage.getItem(SAVE_KEY) ?? ''
-    },
+    // 导出为可读 JSON 文档文本（无副作用，不写入 localStorage）。
+    exportSave: () => encodeSaveJson(buildSaveData()),
 
     hardReset: () => {
       stopTimer()
@@ -1387,15 +1402,47 @@ export const useGame = create<GameState>((set, get) => {
   }
 })
 
+/**
+ * 校验对象是否为结构完整、可安全参与属性计算与渲染的装备物品。
+ * 导入的存档可能被手工编辑或来自旧版本，缺失 quality/type.entry 等字段会
+ * 在 computePlayerAttribute / EquipmentBar 中直接崩溃，因此加载前必须校验。
+ */
+function isValidItem(it: unknown): it is Item {
+  const o = it as Item
+  return (
+    !!o &&
+    typeof o === 'object' &&
+    typeof o.lv === 'number' &&
+    typeof o.enchantlvl === 'number' &&
+    !!o.quality &&
+    typeof o.quality === 'object' &&
+    !!o.type &&
+    typeof o.type === 'object' &&
+    Array.isArray(o.type.entry)
+  )
+}
+
 function normalizeBackpack(bp: unknown): (Item | null)[] {
   const out = emptyBackpack()
   if (Array.isArray(bp)) {
     for (let i = 0; i < Math.min(bp.length, BACKPACK_SIZE); i++) {
       const it = bp[i]
-      out[i] = it && typeof it === 'object' && (it as Item).lv ? (it as Item) : null
+      out[i] = isValidItem(it) ? it : null // 丢弃损坏的物品，避免加载后渲染崩溃
       // 确保旧版物品上存在稳定的 id
       if (out[i] && !(out[i] as Item).id) (out[i] as Item).id = uid()
     }
   }
   return out
+}
+
+/** 校验并补全四个装备槽，任一槽位缺失/损坏则回退到该槽初始装备，避免加载后白屏。 */
+function normalizeEquipment(raw: unknown): Equipment {
+  const base = freshEquipment()
+  if (raw && typeof raw === 'object') {
+    for (const slot of SLOTS) {
+      const it = (raw as Record<string, unknown>)[slot]
+      if (isValidItem(it)) base[slot] = it
+    }
+  }
+  return base
 }
