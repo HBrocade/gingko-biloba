@@ -125,3 +125,19 @@ export const CLAUDE = [
   { name: 'claude-monk', file: 'claude-monk.png', prompt: `A serene martial-arts monk hero named Claude in cream and clay-orange cloth wraps and sash, standing in a calm ready stance with glowing amber sunburst chi energy swirling around his fists. ${CLAUDE_STYLE}` },
   { name: 'claude-cat', file: 'claude-cat.png', prompt: `Schrodinger's cat reimagined as an adorable tiny wizard hero named Claude: a cute orange tabby cat standing upright on two legs, wearing a little terracotta wizard cloak and pointed hat, holding a small wooden staff topped with a glowing amber sunburst spark, one front paw drawn faintly translucent and ghostly to hint at quantum superposition. ${CLAUDE_STYLE}` },
 ]
+
+// 宝箱系统图标（5 个等级）。文件名必须为 chest-<tier>.png，与 src/assets/chestArt.ts 的解析一致。
+// 生成：npm run gen:chest（输出到 src/assets/chest/），未生成时游戏用 emoji 兜底。
+const CHEST_STYLE =
+  '16-bit pixel art RPG inventory icon, a single closed treasure chest centered, three-quarter front view, ' +
+  'crisp clean pixels, bold saturated colors with a clear silhouette, soft rim light, ' +
+  'isolated on a solid pure black background, no text, no letters, no watermark, no border, no frame, ' +
+  'no ground shadow, video game item sprite.'
+
+export const CHEST = [
+  { name: 'chest-wood', file: 'chest-wood.png', prompt: `A humble small wooden treasure chest made of worn oak planks with simple iron bands and a plain latch. ${CHEST_STYLE}` },
+  { name: 'chest-iron', file: 'chest-iron.png', prompt: `A sturdy iron-reinforced treasure chest with riveted grey steel corners, thick metal bands and a heavy padlock. ${CHEST_STYLE}` },
+  { name: 'chest-silver', file: 'chest-silver.png', prompt: `An ornate polished silver treasure chest with engraved filigree scrollwork and small pale-blue gemstone inlays, gleaming metal. ${CHEST_STYLE}` },
+  { name: 'chest-gold', file: 'chest-gold.png', prompt: `A luxurious ornate golden treasure chest with baroque gold trim, a few gold coins peeking out of the lid seam, warm radiant glow. ${CHEST_STYLE}` },
+  { name: 'chest-legend', file: 'chest-legend.png', prompt: `A legendary mythical treasure chest carved from dark obsidian and rose-gold metal, crackling with pink-magenta magical energy, glowing runes along the lid and a radiant aura. ${CHEST_STYLE}` },
+]

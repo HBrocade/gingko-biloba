@@ -14,7 +14,7 @@ const exec = promisify(execFile)
 const __dirname = dirname(fileURLToPath(import.meta.url))
 // which subfolder of src/assets to optimize: --claude, --scene, or default (generated)
 const args = process.argv.slice(2)
-const sub = args.includes('--claude') ? 'claude' : args.includes('--scene') ? 'scene' : 'generated'
+const sub = args.includes('--claude') ? 'claude' : args.includes('--scene') ? 'scene' : args.includes('--chest') ? 'chest' : 'generated'
 const DIR = join(__dirname, '..', 'src', 'assets', sub)
 const MAX = parseInt(args.find((a) => /^\d+$/.test(a)) || '128', 10)
 

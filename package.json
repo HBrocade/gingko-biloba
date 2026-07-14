@@ -10,10 +10,13 @@
     "preview": "vite preview",
     "gen:assets": "node --env-file-if-exists=.env scripts/generate-assets.mjs",
     "gen:claude": "node --env-file-if-exists=.env scripts/generate-assets.mjs --claude",
+    "gen:chest": "node --env-file-if-exists=.env scripts/generate-assets.mjs --chest",
     "opt:assets": "node scripts/optimize-assets.mjs",
     "opt:claude": "node scripts/optimize-assets.mjs --claude",
+    "opt:chest": "node scripts/optimize-assets.mjs --chest",
     "gen:battle": "node --env-file-if-exists=.env scripts/generate-battle.mjs",
-    "opt:battle": "node scripts/optimize-battle.mjs"
+    "opt:battle": "node scripts/optimize-battle.mjs",
+    "package": "bash scripts/package.sh"
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -2095,3 +2095,266 @@ input {
     grid-template-columns: repeat(6, 1fr);
   }
 }
+
+/* ============ 宝箱系统 ============ */
+.chest-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 340px;
+  max-width: 100%;
+}
+.chest-hint,
+.chest-empty {
+  font-size: 13px;
+  color: var(--muted, #9aa4b2);
+  line-height: 1.6;
+}
+.chest-empty {
+  text-align: center;
+  padding: 26px 8px;
+}
+.chest-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #12151c;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.chest-emoji {
+  line-height: 1;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+.chest-img {
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.chest-meta {
+  flex: 1;
+  min-width: 0;
+}
+.chest-name {
+  font-weight: 700;
+  font-size: 15px;
+}
+.chest-sub {
+  font-size: 12px;
+  color: var(--muted, #9aa4b2);
+  margin-top: 2px;
+}
+.chest-ten-hint {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 3px;
+  color: #ffd24a;
+  text-shadow: 0 0 8px #ffca3a66;
+}
+.chest-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.chest-ten {
+  background: linear-gradient(180deg, #ffb63a, #ff8a1a) !important;
+  border-color: #ffb63a !important;
+  color: #2a1800 !important;
+  font-weight: 800;
+}
+.chest-ten-banner {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffd24a;
+  text-shadow: 0 0 10px #ffca3a55;
+  text-align: center;
+}
+
+/* 全屏开箱覆盖层 */
+.chest-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 6, 10, 0.8);
+  backdrop-filter: blur(4px);
+  animation: chestFadeIn 0.2s ease-out;
+}
+@keyframes chestFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.chest-stage {
+  background: #0d1017;
+  border: 2px solid;
+  border-radius: 16px;
+  padding: 26px 30px;
+  max-width: 92vw;
+  max-height: 88vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.chest-reeling {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 28px;
+}
+.chest-open-icon {
+  animation: chestShake 0.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 16px currentColor);
+}
+@keyframes chestShake {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(4deg);
+  }
+}
+.chest-reel {
+  font-size: 52px;
+  line-height: 1;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  animation: chestReelPulse 0.17s steps(2, end) infinite alternate;
+}
+@keyframes chestReelPulse {
+  from {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+.chest-open-label {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.chest-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: chestPop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes chestPop {
+  0% {
+    transform: scale(0.4);
+    filter: brightness(2.4);
+  }
+  60% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+.chest-rewards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  max-width: 640px;
+}
+.chest-item-reward {
+  max-width: 300px;
+}
+.chest-gold-reward {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 130px;
+  padding: 18px 20px;
+  background: radial-gradient(circle at 50% 30%, #3a3418, #14140c);
+  border: 1px solid #ffca3a88;
+  border-radius: 12px;
+}
+.chest-gold-icon {
+  font-size: 34px;
+}
+.chest-gold-amt {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffd24a;
+}
+.chest-gold-note {
+  font-size: 11px;
+  color: var(--muted, #9aa4b2);
+}
+.chest-collect {
+  min-width: 140px;
+  margin-top: 4px;
+}
+
+/* 「独特」掉落全屏闪光 */
+.chest-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.95), rgba(255, 120, 150, 0.5) 45%, rgba(255, 60, 110, 0) 75%);
+  animation: chestFlash 0.9s ease-out forwards;
+}
+@keyframes chestFlash {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 菜单未开启宝箱数量角标 */
+.menu-btn {
+  position: relative;
+}
+.menu-badge {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #ff3b5b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 1px #0d1017;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chest-overlay,
+  .chest-open-icon,
+  .chest-reel,
+  .chest-result {
+    animation: none !important;
+  }
+  .chest-flash {
+    display: none;
+  }
+}

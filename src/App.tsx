@@ -14,12 +14,15 @@ import { SkillsPanel } from './ui/SkillsPanel'
 import { CharacterPanel } from './ui/CharacterPanel'
 import { Modal } from './ui/Modal'
 import { TooltipLayer } from './ui/TooltipLayer'
+import { ChestPanel } from './ui/ChestPanel'
+import { ChestOpenOverlay } from './ui/ChestOpenOverlay'
 
-type Panel = 'char' | 'backpack' | 'shop' | 'skills' | 'rein' | 'hero' | 'gm' | 'import' | 'export' | null
+type Panel = 'char' | 'backpack' | 'shop' | 'skills' | 'rein' | 'hero' | 'gm' | 'import' | 'export' | 'chest' | null
 
 const MENU: { key: Panel | 'refresh' | 'save'; icon: string; label: string }[] = [
   { key: 'char', icon: '📋', label: '角色' },
   { key: 'backpack', icon: '🎒', label: '背包' },
+  { key: 'chest', icon: '🎁', label: '宝箱' },
   { key: 'shop', icon: '🏪', label: '商店' },
   { key: 'skills', icon: '📖', label: '技能' },
   { key: 'refresh', icon: '🔄', label: '刷新副本' },
@@ -125,6 +128,7 @@ function ImportExport({ mode, onClose }: { mode: 'import' | 'export'; onClose: (
 
 function GMPanel({ onClose }: { onClose: () => void }) {
   const gmGrant = useGame((s) => s.gmGrant)
+  const grantChest = useGame((s) => s.grantChest)
   const [gold, setGold] = useState(1000000)
   const [playerLv, setPlayerLv] = useState(1)
   const [equipLv, setEquipLv] = useState(40)
@@ -152,6 +156,15 @@ function GMPanel({ onClose }: { onClose: () => void }) {
       >
         确定
       </button>
+      <button
+        className="btn"
+        onClick={() => {
+          ;(['wood', 'iron', 'silver', 'gold', 'legend'] as const).forEach((t) => grantChest(t, 40))
+          onClose()
+        }}
+      >
+        🎁 发放各级宝箱
+      </button>
     </div>
   )
 }
@@ -165,6 +178,7 @@ export default function App() {
   const strengthenTarget = useGame((s) => s.strengthenTarget)
   const openStrengthen = useGame((s) => s.openStrengthen)
   const closeStrengthen = useGame((s) => s.closeStrengthen)
+  const chestCount = useGame((s) => s.chests.length)
 
   const onMenu = (key: (typeof MENU)[number]['key']) => {
     if (key === 'refresh') return refreshDungeons()
@@ -189,6 +203,7 @@ export default function App() {
               <button key={m.label} className="menu-btn" onClick={() => onMenu(m.key)} title={m.label}>
                 <span className="menu-icon">{m.icon}</span>
                 <span className="menu-label">{m.label}</span>
+                {m.key === 'chest' && chestCount > 0 && <span className="menu-badge">{chestCount}</span>}
               </button>
             ))}
             <button className="menu-btn danger" onClick={() => window.confirm('确定清除存档并重新开始？') && hardReset()} title="清除存档">
@@ -212,6 +227,11 @@ export default function App() {
               setPanel(null)
             }}
           />
+        </Modal>
+      )}
+      {panel === 'chest' && (
+        <Modal title="宝箱" onClose={() => setPanel(null)}>
+          <ChestPanel />
         </Modal>
       )}
       {panel === 'shop' && (
@@ -250,6 +270,7 @@ export default function App() {
         </Modal>
       )}
 
+      <ChestOpenOverlay />
       <TooltipLayer />
     </div>
   )

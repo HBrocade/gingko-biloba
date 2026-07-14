@@ -13,15 +13,17 @@
 import { writeFile, mkdir, access } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { MANIFEST, SCENE, CLAUDE } from './asset-manifest.mjs'
+import { MANIFEST, SCENE, CLAUDE, CHEST } from './asset-manifest.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-// pick a target: --scene (heroes/monsters), --claude (Schrödinger's Claude roster), or default (items)
+// pick a target: --chest (treasure chests), --scene (heroes/monsters), --claude (Claude roster), or default (items)
 const target = process.argv.includes('--claude')
   ? { source: CLAUDE, dir: 'claude' }
   : process.argv.includes('--scene')
     ? { source: SCENE, dir: 'scene' }
-    : { source: MANIFEST, dir: 'generated' }
+    : process.argv.includes('--chest')
+      ? { source: CHEST, dir: 'chest' }
+      : { source: MANIFEST, dir: 'generated' }
 const SOURCE = target.source
 const OUT_DIR = join(__dirname, '..', 'src', 'assets', target.dir)
 
