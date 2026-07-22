@@ -16,3 +16,6 @@ _*.mjs
 # build cache
 tsconfig.tsbuildinfo
 .gitnexus
+
+# 部署压缩包
+*.tar.gz

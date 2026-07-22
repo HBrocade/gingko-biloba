@@ -8,6 +8,7 @@ const ORDER: ItemType[] = ['weapon', 'armor', 'ring', 'neck']
 
 export function EquipmentBar() {
   const equipment = useGame((s) => s.equipment)
+  const openEquipStrengthen = useGame((s) => s.openEquipStrengthen)
   const show = useTooltip((s) => s.show)
   const hide = useTooltip((s) => s.hide)
 
@@ -22,6 +23,7 @@ export function EquipmentBar() {
             <div
               key={slot}
               className={`equip-slot${item.quality.name === '独特' ? ' unique' : ''}${item.enchantlvl >= 13 ? ' red-flash' : ''}`}
+              onClick={() => openEquipStrengthen(slot)}
               onMouseEnter={(e) => show(item, e)}
               onMouseLeave={hide}
             >
