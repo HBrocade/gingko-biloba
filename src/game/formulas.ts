@@ -553,16 +553,18 @@ export interface AbyssTier {
   level: number
   /** 在基准等级属性之上的怪物 HP/ATK 乘数。 */
   monsterMul: number
-  /** 相对普通副本的基础装备掉率乘数。 */
-  dropMul: number
+  /** 每层深渊提升的怪物等级比例（0.10 = 10%）。越高环节增幅越大。 */
+  levelStep: number
+  /** 击败首领时获得传说宝箱的基础概率（0.28 = 28%），其余为金箱。随玩家/boss等级差动态调节。 */
+  legendChestChance: number
 }
 
 export const ABYSS_TIERS: AbyssTier[] = [
-  { key: 't1', name: '微光裂隙', level: 20, monsterMul: 1.0, dropMul: 1.6 },
-  { key: 't2', name: '幽暗深穴', level: 45, monsterMul: 1.7, dropMul: 2.2 },
-  { key: 't3', name: '炼狱熔渊', level: 90, monsterMul: 2.8, dropMul: 3.0 },
-  { key: 't4', name: '虚空回廊', level: 160, monsterMul: 4.5, dropMul: 3.9 },
-  { key: 't5', name: '混沌深渊', level: 280, monsterMul: 7.2, dropMul: 5.0 },
+  { key: 't1', name: '微光裂隙', level: 20, monsterMul: 1.0, levelStep: 0.10, legendChestChance: 0.35 },
+  { key: 't2', name: '幽暗深穴', level: 45, monsterMul: 1.7, levelStep: 0.12, legendChestChance: 0.42 },
+  { key: 't3', name: '炼狱熔渊', level: 90, monsterMul: 2.8, levelStep: 0.15, legendChestChance: 0.50 },
+  { key: 't4', name: '虚空回廊', level: 160, monsterMul: 4.5, levelStep: 0.18, legendChestChance: 0.58 },
+  { key: 't5', name: '混沌深渊', level: 280, monsterMul: 7.2, levelStep: 0.22, legendChestChance: 0.68 },
 ]
 
 export function abyssTierByKey(key: string): AbyssTier {
@@ -574,31 +576,20 @@ export function abyssEntryCost(tier: AbyssTier, charLv: number, abyssLv: number)
   return Math.floor(tier.level * Math.max(1, charLv) * Math.max(1, abyssLv))
 }
 
-/** 为某个档位 + 层级构建一个深渊副本：怪物更强、无 灵石、掉落提升。 */
+/** 为某个档位 + 层级构建一个深渊副本：怪物更强、不掉装备/灵石、奖励全靠宝箱。 */
 export function createAbyssDungeon(tier: AbyssTier, abyssLv: number): Dungeon {
-  const effLv = Math.max(1, Math.round(tier.level * (1 + (abyssLv - 1) * 0.12)))
+  const effLv = Math.max(1, Math.round(tier.level * (1 + (abyssLv - 1) * tier.levelStep)))
   const d = createRandomDungeon(effLv, 3)
   d.type = 'abyss'
   d.lv = abyssLv
   d.lvMin = effLv
   d.lvMax = effLv
   d.name = `${tier.name} · 第${abyssLv}层`
-  // 层级越高掉落越多；按档位缩放怪物强度
-  const dropBoost = tier.dropMul * (1 + (abyssLv - 1) * 0.05)
+  // 按环节缩放怪物强度；装备掉落率保留原始值（深渊不掷装备，无影响）
   for (const ev of d.eventType) {
     ev.attribute.HP = fl(ev.attribute.HP * tier.monsterMul)
     ev.attribute.ATK = fl(ev.attribute.ATK * tier.monsterMul)
     ev.trophy.gold = 0 // 深渊不给 灵石
-    // 在保持品质分布的前提下提升总掉落率。equip[] 是一个按品质划分的
-    // 概率向量，以有序累积掷取的方式消费（最差品质在前），
-    // 因此逐桶相乘会把概率前置堆到最差档位上。
-    // 改为整体缩放该向量，使其总和 (= 总掉落几率) 向上限靠拢。
-    const sum = ev.trophy.equip.reduce((s, p) => s + p, 0)
-    if (sum > 0) {
-      const target = Math.max(sum, Math.min(0.995, sum * dropBoost))
-      const k = target / sum
-      ev.trophy.equip = ev.trophy.equip.map((p) => p * k)
-    }
   }
   return d
 }

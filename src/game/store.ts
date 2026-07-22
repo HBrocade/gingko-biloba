@@ -53,12 +53,15 @@ import { b64encode, SAVE_KEY, encodeSaveJson, decodeSave } from './save'
 import {
   CHEST_TIERS,
   CHEST_TIER_KEYS,
+  abyssBossChestTier,
   bossChestTier,
   mineChestTier,
   mineChestChance,
   rollChestRewards,
   rollTenPull,
+  rollHundredPull,
   TEN_PULL,
+  HUNDRED_PULL,
   type ChestInstance,
   type ChestReward,
   type ChestReveal,
@@ -175,6 +178,7 @@ export interface GameState {
 
   strengthenTarget: Item | null
   strengthenIndex: number
+  strengthenSlot: ItemType | null
 
   // ---- 宝箱系统 ----
   /** 未开启的宝箱库存（持久化）。 */
@@ -225,6 +229,7 @@ export interface GameState {
   stopBattle: (manual?: boolean) => void
 
   openStrengthen: (index: number) => void
+  openEquipStrengthen: (slot: ItemType) => void
   closeStrengthen: () => void
   doStrengthen: () => 'ok' | 'nogold'
   autoStrengthen: (targetLv: number) => void
@@ -242,6 +247,7 @@ export interface GameState {
   grantChest: (tier: ChestTierKey, lv: number) => void
   openChest: (id: string) => void
   openTen: (tier: ChestTierKey) => void
+  openHundred: (tier: ChestTierKey) => void
   dismissChestReveal: () => void
 
   saveGame: (notify?: boolean) => void
@@ -354,6 +360,13 @@ export const useGame = create<GameState>((set, get) => {
 
   const writeBackItem = (updated: Item) => {
     const s = get()
+    // 如果正在强化身上的装备，写回装备槽并重算属性
+    if (s.strengthenSlot) {
+      const equipment = { ...s.equipment, [s.strengthenSlot]: updated }
+      set({ equipment })
+      get().recompute()
+      return
+    }
     if (s.strengthenIndex < 0) return
     const backpack = [...s.backpack]
     backpack[s.strengthenIndex] = updated
@@ -368,8 +381,8 @@ export const useGame = create<GameState>((set, get) => {
     const state = get()
     const items: Item[] = []
 
-    // 独特掉落（仅 boss，非无尽）
-    if (event.type === 'boss' && !isEndless) {
+    // 独特掉落（仅 boss，非无尽/深渊）
+    if (event.type === 'boss' && !isEndless && !isAbyss) {
       const threshold = 1 - 0.02 * ((dungeon.difficulty - 1) * 2 + 1)
       if (Math.random() > threshold) {
         const rr = Math.random()
@@ -377,6 +390,17 @@ export const useGame = create<GameState>((set, get) => {
         items.push(createItem(slot, 4, Math.floor(lv + Math.random() * 6)))
       }
     }
+
+    // 无尽模式：纯经济奖励，不掷装备、不掷宝箱
+    if (isEndless) {
+      const gold = Math.floor(event.trophy.gold * 5.5)
+      get().addGold(gold)
+      pushLog({ type: 'trophy', msg: `获得灵石 ${fmtNum(gold)}` })
+      return
+    }
+
+    // 深渊模式：不爆装备、不掉灵石，只有首领掉落宝箱
+    if (isAbyss) return
 
     // 按品质表进行的普通掉落
     const equip = event.trophy.equip
@@ -394,22 +418,10 @@ export const useGame = create<GameState>((set, get) => {
     if (equipQua !== -1) {
       const slot = SLOTS[Math.floor(Math.random() * 4)]
       const rolled = createItem(slot, equipQua, lv)
-      if (isEndless) {
-        // 无尽：不掉装备，只掉提升后的 灵石
-        const gold = Math.floor(event.trophy.gold * 1.5)
-        get().addGold(gold)
-        pushLog({ type: 'trophy', msg: `获得灵石 ${fmtNum(gold)}` })
-        return
-      }
       const dropItems = [...items, rolled]
-      if (isAbyss) {
-        // 深渊：只掉装备，不掉 灵石
-        pushLog({ type: 'trophy', msg: '深渊掉落装备', equip: dropItems })
-      } else {
-        const gold = Math.floor(event.trophy.gold)
-        get().addGold(gold)
-        pushLog({ type: 'trophy', msg: `获得灵石 ${fmtNum(gold)}`, equip: dropItems })
-      }
+      const gold = Math.floor(event.trophy.gold)
+      get().addGold(gold)
+      pushLog({ type: 'trophy', msg: `获得灵石 ${fmtNum(gold)}`, equip: dropItems })
       for (const it of dropItems) {
         if (state.autoSell[equipQua] && it.quality.name !== '独特') {
           const g = sellPrice(it)
@@ -420,10 +432,9 @@ export const useGame = create<GameState>((set, get) => {
           if (!ok) pushLog({ type: 'warning', msg: '背包已满，装备无法拾取！' })
         }
       }
-    } else if (!isAbyss) {
-      // 没有掉出装备 —— 发放 灵石（深渊 未命中时不给任何奖励）
-      const goldRatio = isEndless ? 2.6 : 1
-      const gold = Math.floor(event.trophy.gold * goldRatio)
+    } else {
+      // 没有掉出装备 —— 发放 灵石
+      const gold = Math.floor(event.trophy.gold)
       get().addGold(gold)
       pushLog({ type: 'trophy', msg: `获得灵石 ${fmtNum(gold)}` })
     }
@@ -675,8 +686,13 @@ export const useGame = create<GameState>((set, get) => {
       // 击杀奖励 灵石 + 装备（通过 awardTrophy）；EXP 来自被动
       // 涓流以及 灵石→经验 转换，而非击杀。
       awardTrophy(b.dungeon, event)
-      // 击败首领必得宝箱（等级随副本难度提升，可开出远超当前等级的装备）
-      if (event.type === 'boss') grantChest(bossChestTier(b.dungeon.difficulty), event.lv)
+      // 击败首领必得宝箱（无尽模式不掉宝箱，纯经济奖励）。深渊使用环节专属传说概率。
+      if (event.type === 'boss' && b.dungeon.type !== 'endless') {
+        const chestTier = b.dungeon.type === 'abyss'
+          ? abyssBossChestTier(abyssTierByKey(s.abyssTier), s.lv, event.lv)
+          : bossChestTier(b.dungeon.difficulty, s.lv, event.lv)
+        grantChest(chestTier, event.lv)
+      }
       // 困难/极难副本仅可挑战一次 —— 首次获胜后从地图上移除
       if (b.dungeon.type !== 'endless' && b.dungeon.type !== 'abyss' && b.dungeon.difficulty !== 1) {
         set({ dungeons: get().dungeons.filter((d) => d.id !== b.dungeon.id) })
@@ -777,6 +793,7 @@ export const useGame = create<GameState>((set, get) => {
 
     strengthenTarget: null,
     strengthenIndex: -1,
+    strengthenSlot: null,
 
     chests: [],
     chestReveal: null,
@@ -1150,9 +1167,14 @@ export const useGame = create<GameState>((set, get) => {
     openStrengthen: (index) => {
       const item = get().backpack[index]
       if (!item) return
-      set({ strengthenTarget: item, strengthenIndex: index })
+      set({ strengthenTarget: item, strengthenIndex: index, strengthenSlot: null })
     },
-    closeStrengthen: () => set({ strengthenTarget: null, strengthenIndex: -1 }),
+    openEquipStrengthen: (slot) => {
+      const item = get().equipment[slot]
+      if (!item) return
+      set({ strengthenTarget: item, strengthenIndex: -1, strengthenSlot: slot })
+    },
+    closeStrengthen: () => set({ strengthenTarget: null, strengthenIndex: -1, strengthenSlot: null }),
 
     doStrengthen: () => {
       const s = get()
@@ -1394,7 +1416,12 @@ export const useGame = create<GameState>((set, get) => {
       if (s.chestReveal) return // 一次只开一个，避免动画叠加
       const chest = s.chests.find((c) => c.id === id)
       if (!chest) return
-      set({ chests: s.chests.filter((c) => c.id !== id) })
+      const cost = CHEST_TIERS[chest.tier].openCost(s.lv)
+      if (s.gold < cost) {
+        pushLog({ type: 'warning', msg: `开箱需要 ${fmtNum(cost)} 灵石，灵石不足。` })
+        return
+      }
+      set({ chests: s.chests.filter((c) => c.id !== id), gold: s.gold - cost })
 
       // 装备等级统一 = 玩家当前等级；各等级宝箱只在品质概率上区分。
       const { finalRewards, logItems, goldSum, hasUnique } = applyChestRewards(rollChestRewards(chest.tier, s.lv))
@@ -1405,7 +1432,7 @@ export const useGame = create<GameState>((set, get) => {
       if (goldSum) parts.push(`灵石 ${fmtNum(goldSum)}`)
       pushLog({
         type: hasUnique ? 'win' : 'trophy',
-        msg: `开启${CHEST_TIERS[chest.tier].name}，获得 ${parts.join('、') || '空空如也'}`,
+        msg: `消耗 ${fmtNum(cost)} 灵石开启${CHEST_TIERS[chest.tier].name}，获得 ${parts.join('、') || '空空如也'}`,
         equip: logItems,
       })
     },
@@ -1415,9 +1442,14 @@ export const useGame = create<GameState>((set, get) => {
       if (s.chestReveal) return
       const owned = s.chests.filter((c) => c.tier === tier)
       if (owned.length < TEN_PULL) return
+      const cost = CHEST_TIERS[tier].openCost(s.lv) * TEN_PULL
+      if (s.gold < cost) {
+        pushLog({ type: 'warning', msg: `十连开箱需要 ${fmtNum(cost)} 灵石，灵石不足。` })
+        return
+      }
       // 移除 10 个该等级宝箱
       const removeIds = new Set(owned.slice(0, TEN_PULL).map((c) => c.id))
-      set({ chests: s.chests.filter((c) => !removeIds.has(c.id)) })
+      set({ chests: s.chests.filter((c) => !removeIds.has(c.id)), gold: s.gold - cost })
 
       // 十连抽：第 10 个惊喜奖励（双倍 + 高级装备几率翻倍）
       const { finalRewards, logItems, goldSum, hasUnique } = applyChestRewards(rollTenPull(tier, s.lv))
@@ -1428,7 +1460,35 @@ export const useGame = create<GameState>((set, get) => {
       if (goldSum) parts.push(`灵石 ${fmtNum(goldSum)}`)
       pushLog({
         type: hasUnique ? 'win' : 'trophy',
-        msg: `${CHEST_TIERS[tier].name} 十连抽！获得 ${parts.join('、') || '空空如也'}`,
+        msg: `消耗 ${fmtNum(cost)} 灵石，${CHEST_TIERS[tier].name} 十连抽！获得 ${parts.join('、') || '空空如也'}`,
+        equip: logItems,
+      })
+    },
+
+    openHundred: (tier) => {
+      const s = get()
+      if (s.chestReveal) return
+      const owned = s.chests.filter((c) => c.tier === tier)
+      if (owned.length < HUNDRED_PULL) return
+      const cost = CHEST_TIERS[tier].openCost(s.lv) * HUNDRED_PULL
+      if (s.gold < cost) {
+        pushLog({ type: 'warning', msg: `百连开箱需要 ${fmtNum(cost)} 灵石，灵石不足。` })
+        return
+      }
+      // 移除 100 个该等级宝箱
+      const removeIds = new Set(owned.slice(0, HUNDRED_PULL).map((c) => c.id))
+      set({ chests: s.chests.filter((c) => !removeIds.has(c.id)), gold: s.gold - cost })
+
+      // 百连抽：第 100 个超级惊喜（双倍 + 高级装备几率 ×4）
+      const { finalRewards, logItems, goldSum, hasUnique } = applyChestRewards(rollHundredPull(tier, s.lv))
+      set({ chestReveal: { tier, rewards: finalRewards, pulls: HUNDRED_PULL } })
+
+      const parts: string[] = []
+      if (logItems.length) parts.push(`装备 ×${logItems.length}`)
+      if (goldSum) parts.push(`灵石 ${fmtNum(goldSum)}`)
+      pushLog({
+        type: hasUnique ? 'win' : 'trophy',
+        msg: `消耗 ${fmtNum(cost)} 灵石，${CHEST_TIERS[tier].name} 百连抽！获得 ${parts.join('、') || '空空如也'}`,
         equip: logItems,
       })
     },
@@ -1519,6 +1579,7 @@ export const useGame = create<GameState>((set, get) => {
         battle: null,
         strengthenTarget: null,
         strengthenIndex: -1,
+        strengthenSlot: null,
         chests: [],
         chestReveal: null,
         sysInfo: [{ type: '', msg: '存档已清除，游戏重新开始。' }],
