@@ -48,11 +48,19 @@ export function ChestOpenOverlay() {
 
   if (!reveal) return null
   const tier = CHEST_TIERS[reveal.tier]
-  const isTen = (reveal.pulls ?? 1) >= 2
+  const pulls = reveal.pulls ?? 1
+  const isTen = pulls >= 2 && pulls < 100
+  const isHundred = pulls >= 100
+
+  const label = isHundred ? '百连抽' : isTen ? '十连抽' : ''
 
   return (
     <div className="chest-overlay">
       <div className="chest-stage" style={{ borderColor: `${tier.color}99`, boxShadow: `0 0 44px ${tier.color}55` }}>
+        {/* 右上角关闭按钮 —— 直接收下所有奖励 */}
+        <button className="chest-close-btn" onClick={dismiss} title="关闭并收下所有奖励">
+          ✕
+        </button>
         {!done ? (
           <div className="chest-reeling">
             <div className="chest-open-icon">
@@ -60,14 +68,15 @@ export function ChestOpenOverlay() {
             </div>
             <div className="chest-reel">{REEL_GLYPHS[reelIdx % REEL_GLYPHS.length]}</div>
             <div className="chest-open-label" style={{ color: tier.color }}>
-              {isTen ? `${tier.name} 十连抽中…` : `开启${tier.name}中…`}
+              {isHundred || isTen ? `${tier.name} ${label}中…` : `开启${tier.name}中…`}
             </div>
           </div>
         ) : (
           <div className="chest-result">
             <div className="chest-open-label" style={{ color: tier.color }}>
-              {isTen ? `${tier.name} 十连抽 · 开启！` : `${tier.name} · 开启！`}
+              {isHundred || isTen ? `${tier.name} ${label} · 开启！` : `${tier.name} · 开启！`}
             </div>
+            {isHundred && <div className="chest-ten-banner">🔥 100 连有超级惊喜 · 第 100 个双倍，高级装备几率 ×4</div>}
             {isTen && <div className="chest-ten-banner">🎉 10 连有惊喜奖励 · 第 10 个双倍，高级装备几率翻倍</div>}
             <div className="chest-rewards">
               {reveal.rewards.map((r, i) =>

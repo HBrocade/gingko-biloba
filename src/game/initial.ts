@@ -92,5 +92,5 @@ export const EMPTY_REINCARNATION_ATTR: ReincarnationAttribute = {
   BATTLESPEED: 0,
 }
 
-export const BACKPACK_SIZE = 32
+export const BACKPACK_SIZE = 1000
 export const SHOP_SIZE = 5

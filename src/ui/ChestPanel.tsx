@@ -1,5 +1,5 @@
 import { useGame } from '../game/store'
-import { CHEST_TIERS, CHEST_TIER_ORDER, TEN_PULL, type ChestTierKey } from '../game/chest'
+import { CHEST_TIERS, CHEST_TIER_ORDER, TEN_PULL, HUNDRED_PULL, type ChestTierKey } from '../game/chest'
 import { chestArt } from '../assets/chestArt'
 
 /** 宝箱等级图标：优先用生成的 PNG，否则回退 emoji。 */
@@ -19,6 +19,7 @@ export function ChestPanel() {
   const chests = useGame((s) => s.chests)
   const openChest = useGame((s) => s.openChest)
   const openTen = useGame((s) => s.openTen)
+  const openHundred = useGame((s) => s.openHundred)
 
   if (!chests.length) {
     return (
@@ -35,6 +36,7 @@ export function ChestPanel() {
         if (!list.length) return null
         const tier = CHEST_TIERS[key]
         const canTen = list.length >= TEN_PULL
+        const canHundred = list.length >= HUNDRED_PULL
         return (
           <div className="chest-row" key={key}>
             <ChestGlyph tier={key} />
@@ -42,15 +44,21 @@ export function ChestPanel() {
               <div className="chest-name" style={{ color: tier.color }}>
                 {tier.name} ×{list.length}
               </div>
-              {canTen && <div className="chest-ten-hint">🎉 10 连有惊喜奖励</div>}
+              {canHundred && <div className="chest-ten-hint">🔥 100 连有超级惊喜 · 第 100 个高级几率 ×4</div>}
+              {!canHundred && canTen && <div className="chest-ten-hint">🎉 10 连有惊喜奖励</div>}
             </div>
             <div className="chest-actions">
+              {canHundred && (
+                <button className="btn primary chest-ten" onClick={() => openHundred(key)}>
+                  百连抽
+                </button>
+              )}
               {canTen && (
-                <button className="btn primary chest-ten" onClick={() => openTen(key)}>
+                <button className={`btn${canHundred ? '' : ' primary'} chest-ten`} onClick={() => openTen(key)}>
                   十连抽
                 </button>
               )}
-              <button className={`btn${canTen ? '' : ' primary'}`} onClick={() => openChest(list[0].id)}>
+              <button className={`btn${canTen || canHundred ? '' : ' primary'}`} onClick={() => openChest(list[0].id)}>
                 开启
               </button>
             </div>

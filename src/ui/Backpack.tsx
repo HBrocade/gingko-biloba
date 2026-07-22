@@ -35,6 +35,45 @@ export function Backpack({ onStrengthen }: Props) {
 
   return (
     <div className="backpack">
+      {/* 顶部功能栏 —— 与底部一致 */}
+      <div className="backpack-actions top">
+        <div className="autosell-wrap">
+          <button className="link-btn" onClick={() => setShowAutoSell((v) => !v)}>
+            自动出售设置 ⚙️
+          </button>
+          {showAutoSell && (
+            <div className="autosell-menu">
+              <p>勾选后，副本掉落该品质装备将自动出售（独特除外）</p>
+              <div className="autosell-grid">
+                {[0, 1, 2, 3].map((i) => (
+                  <label key={i}>
+                    <input type="checkbox" checked={autoSell[i]} onChange={(e) => setAutoSell(i, e.target.checked)} />
+                    {QUALITY_NAMES[i]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <button className="btn primary" onClick={autoEquip} title="自动为每个部位穿上背包里战力最高的装备">
+          一键换装
+        </button>
+        <button className="btn" onClick={neaten}>
+          整理
+        </button>
+        <button className="btn" onClick={optimalSort} title="按槽位分组，组内按战力评分从高到低排序">
+          最优排序
+        </button>
+        {lockedCount > 0 && (
+          <button className="btn" onClick={unlockAllBackpack} title="一次性解除背包内全部装备的锁定">
+            批量解锁 🔓{lockedCount}
+          </button>
+        )}
+        <button className="btn" onClick={sellAll}>
+          出售
+        </button>
+      </div>
+
       <div className="grid-wrap">
         {backpack.map((item, k) => (
           <div
