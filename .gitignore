@@ -19,3 +19,6 @@ tsconfig.tsbuildinfo
 
 # 部署压缩包
 *.tar.gz
+.claude/
+AGENTS.md
+CLAUDE.md
